@@ -929,51 +929,74 @@ async function processNotes() {
 // ── GEMINI TRANSCRIPTION ──────────────────────────────────────────────────────
 
 async function transcribeWithGemini(base64, mimeType, apiKey) {
-  const prompt = `You are an expert at reading handwritten notes. Analyze this image and return ONLY valid JSON, no markdown, no explanation.
+  const prompt = `You are an expert at reading handwritten notes. Analyze this image carefully and return ONLY valid JSON, no markdown, no explanation.
+
+Your PRIMARY goal is to preserve the EXACT structure and order of the notes as written on the page, including indentation relationships between parent items and their children.
 
 JSON structure:
 {
   "date": "YYYY-MM-DD or null",
-  "day_label": "e.g. Tuesday, March 24, 2026",
+  "day_label": "e.g. Thursday, March 26, 2026",
+  "meeting_context": "e.g. PIP MEETING or null — the top-level meeting/context label if present",
   "context_tags": [
-    { "tag": "AFC", "full_name": "Air France Call", "inferred_from": "surrounding text clue" }
+    { "tag": "AFC", "full_name": "Air France Call", "inferred_from": "surrounding text" }
   ],
-  "action_items": [
+  "key_takeaways": [
+    "Brief bullet — max 5, high level only. E.g. '2 high priority items: DNATA cancellation, Emirates reschedule'",
+    "Waiting on: Joseph (BOM), Mark (meeting update)",
+    "Deadline: Air France BOM due APR-03",
+    "3 recorded statements from John re: B777, Global 7500, switch assemblies",
+    "1 decision by Michelle — Emirates lens/motor early ship"
+  ],
+  "note_blocks": [
     {
-      "type": "high_priority|rollover|completed|waiting|decision|low|info",
-      "task": "description",
+      "symbol": "circled_number|star|checkbox_empty|checkbox_checked|circle|arrow|bullet|bracket_tag|decision|info|waiting",
+      "symbol_display": "the actual symbol as written e.g. ①, □, °, →, •, ☑, [D]",
+      "type": "high_priority|rollover|completed|statement|waiting|decision|low|info|tag_header",
       "priority_rank": null,
       "tag": null,
       "waiting_on": null,
       "due_date": null,
-      "symbol": "star|circled_number|checkbox_empty|checkbox_checked|bullet|none"
+      "text": "the full text of this item exactly as written",
+      "person": "name if this is a statement, else null",
+      "children": [
+        {
+          "symbol": "arrow|bullet|checkbox_empty|checkbox_checked|circle|info",
+          "symbol_display": "→, •, □, ☑, °",
+          "type": "rollover|low|info|waiting|completed|statement",
+          "waiting_on": null,
+          "text": "child item text exactly as written",
+          "children": []
+        }
+      ]
     }
-  ],
-  "statements": [
-    { "person": "Name", "quote": "what they said", "context": "meeting or project context", "tag": null }
-  ],
-  "projects": [
-    { "name": "Project name", "tag": null, "details": ["detail 1"], "follow_ups": ["follow-up 1"] }
-  ],
-  "reference_notes": ["note 1"],
-  "highlighted_items": ["highlighted text"],
-  "deadlines": [
-    { "task": "task description", "due_date": "date string", "tag": null }
   ]
 }
 
-Symbol rules:
-- Star or circled number = high_priority. Circled number = priority_rank.
-- Empty checkbox = rollover.
-- Checkbox with checkmark or X inside = completed.
-- Circle before text = statement, goes to statements array only.
-- WO/ NAME = waiting, set waiting_on to the name.
-- [D] prefix = decision.
-- Bullet or dash = low.
-- Plain text = info.
-- Standalone X is NOT high priority.
-- Square brackets like [AFC] = context tag, extract to context_tags.
-- DUE: date = extract to due_date and deadlines array.`;
+CRITICAL RULES:
+
+ORDER: Preserve the exact top-to-bottom order items appear on the page. Do not reorder or group.
+
+INDENTATION: Any item written indented below another is a CHILD of that parent. Capture it in the children array of its parent, NOT as a separate top-level block. Children can have their own children (grandchildren) if indented further.
+
+SYMBOLS — apply exactly:
+- Circled number (① ② ③) = high_priority, set priority_rank to the number
+- Star (*) = high_priority
+- Empty checkbox (□) = rollover
+- Checked/X checkbox (☑ or ☒) = completed
+- Small open circle (°) before text = statement, set person to the name mentioned
+- WO/ NAME = waiting, set waiting_on to the name after WO/
+- Arrow (→) = info or action sub-item, usually a child
+- [D] prefix = decision
+- Bullet (•) or dash = low
+- Text in [SQUARE BRACKETS] at start of line = tag_header context marker
+- Plain text = info
+
+CONTEXT TAGS: Text in [SQUARE BRACKETS] like [Air France] or [LHT Safari VIP] = context tag. Extract to context_tags array AND set tag field on the note_block.
+
+DEADLINES: DUE: followed by date = set due_date on the block.
+
+KEY TAKEAWAYS: Write exactly 5 brief bullets summarizing the most important things from the entire page. Each bullet must be one concise line. Prioritize: high priority items, deadlines, statements, decisions, waiting items.`;
 
   const res = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey,
@@ -1001,7 +1024,7 @@ Symbol rules:
   raw = raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'').trim();
 
   try { return JSON.parse(raw); }
-  catch { return { day_label: new Date().toDateString(), action_items: [], projects: [], statements: [], reference_notes: [raw], highlighted_items: [], deadlines: [], context_tags: [] }; }
+  catch { return { day_label: new Date().toDateString(), meeting_context: null, key_takeaways: [], note_blocks: [], context_tags: [] }; }
 }
 
 // ── GOOGLE DOCS ───────────────────────────────────────────────────────────────
@@ -1024,86 +1047,63 @@ async function createGoogleDoc(data, token, folderName) {
 function buildDocContent(data) {
   const lines = [];
   const d = data;
-  lines.push({ text: d.day_label || new Date().toDateString(), style: 'TITLE' });
 
-  const high      = (d.action_items || []).filter(i => i.type === 'high_priority').sort((a,b) => (a.priority_rank||99)-(b.priority_rank||99));
-  const rollover  = (d.action_items || []).filter(i => i.type === 'rollover');
-  const waiting   = (d.action_items || []).filter(i => i.type === 'waiting');
-  const decisions = (d.action_items || []).filter(i => i.type === 'decision');
-  const done      = (d.action_items || []).filter(i => i.type === 'completed');
-  const other     = (d.action_items || []).filter(i => ['low','info'].includes(i.type));
+  // ── Title ──
+  const titleParts = [d.day_label || new Date().toDateString()];
+  if (d.meeting_context) titleParts.push('\u2014 ' + d.meeting_context);
+  lines.push({ text: titleParts.join(' '), style: 'TITLE' });
 
-  if (high.length) {
-    lines.push({ text: '\u26a1 Action Items', style: 'HEADING_1' });
-    high.forEach(item => {
-      const rank = item.priority_rank ? '#' + item.priority_rank + ' ' : '';
-      const tag  = item.tag ? ' ' + item.tag : '';
-      const due  = item.due_date ? '  [DUE: ' + item.due_date + ']' : '';
-      lines.push({ text: '\ud83d\udd34  ' + rank + item.task + tag + due, style: 'NORMAL' });
-    });
+  // ── Key Takeaways ──
+  if (d.key_takeaways && d.key_takeaways.length) {
+    lines.push({ text: '\ud83d\udccb KEY TAKEAWAYS', style: 'HEADING_1' });
+    d.key_takeaways.forEach(t => lines.push({ text: '\u2022  ' + t, style: 'NORMAL' }));
   }
-  if (rollover.length) {
-    lines.push({ text: '\ud83d\udd04 Rollover Tasks', style: 'HEADING_1' });
-    rollover.forEach(item => {
-      const tag = item.tag ? ' ' + item.tag : '';
-      const due = item.due_date ? '  [DUE: ' + item.due_date + ']' : '';
-      lines.push({ text: '\ud83d\udd04  ' + item.task + tag + due, style: 'NORMAL' });
-    });
+
+  // ── Full Notes ──
+  if (d.note_blocks && d.note_blocks.length) {
+    lines.push({ text: '\ud83d\udcc4 FULL NOTES', style: 'HEADING_1' });
+    renderBlocks(d.note_blocks, lines, 0);
   }
-  if (waiting.length) {
-    lines.push({ text: '\u23f3 Waiting On', style: 'HEADING_1' });
-    waiting.forEach(item => {
-      const who = item.waiting_on ? ' \u2014 ' + item.waiting_on : '';
-      const tag = item.tag ? ' ' + item.tag : '';
-      lines.push({ text: '\u23f3  ' + item.task + who + tag, style: 'NORMAL' });
-    });
-  }
-  if (decisions.length) {
-    lines.push({ text: '\u2733\ufe0f Decisions Made', style: 'HEADING_1' });
-    decisions.forEach(item => {
-      lines.push({ text: '\u2733\ufe0f  ' + item.task + (item.tag ? ' ' + item.tag : ''), style: 'NORMAL' });
-    });
-  }
-  if (done.length) {
-    lines.push({ text: '\u2705 Completed Tasks', style: 'HEADING_1' });
-    done.forEach(item => lines.push({ text: '\u2705  ' + item.task, style: 'NORMAL' }));
-  }
-  if (d.deadlines && d.deadlines.length) {
-    lines.push({ text: '\ud83d\udcc5 Deadlines', style: 'HEADING_1' });
-    d.deadlines.forEach(dl => {
-      lines.push({ text: '\ud83d\udcc5  ' + dl.task + ' \u2014 DUE: ' + dl.due_date + (dl.tag ? ' ' + dl.tag : ''), style: 'NORMAL' });
-    });
-  }
-  if (d.statements && d.statements.length) {
-    lines.push({ text: '\ud83d\udcac Recorded Statements', style: 'HEADING_1' });
-    d.statements.forEach(s => {
-      const ctx = s.context ? ' [' + s.context + ']' : '';
-      const tag = s.tag ? ' ' + s.tag : '';
-      lines.push({ text: s.person + ctx + tag + ': "' + s.quote + '"', style: 'NORMAL' });
-      lines.push({ text: 'Recorded: ' + (d.day_label || new Date().toDateString()), style: 'NORMAL' });
-    });
-  }
-  if (d.projects && d.projects.length) {
-    lines.push({ text: '\ud83d\udcc1 Projects', style: 'HEADING_1' });
-    d.projects.forEach(proj => {
-      lines.push({ text: proj.name + (proj.tag ? ' ' + proj.tag : ''), style: 'HEADING_2' });
-      (proj.details || []).forEach(detail => lines.push({ text: '\u2022 ' + detail, style: 'NORMAL' }));
-      (proj.follow_ups || []).forEach(f => lines.push({ text: '\ud83d\udccc ' + f, style: 'NORMAL' }));
-    });
-  }
-  if (other.length) {
-    lines.push({ text: '\ud83d\udcdd Notes', style: 'HEADING_1' });
-    other.forEach(item => lines.push({ text: (item.type === 'low' ? '\ud83d\udfe2' : '\u26aa') + '  ' + item.task, style: 'NORMAL' }));
-  }
-  if (d.reference_notes && d.reference_notes.length) {
-    lines.push({ text: '\ud83d\udcdd Reference Notes', style: 'HEADING_1' });
-    d.reference_notes.forEach(n => lines.push({ text: n, style: 'NORMAL' }));
-  }
-  if (d.highlighted_items && d.highlighted_items.length) {
-    lines.push({ text: '\ud83d\udfe1 Highlighted', style: 'HEADING_1' });
-    d.highlighted_items.forEach(h => lines.push({ text: h, style: 'NORMAL' }));
-  }
+
   return lines;
+}
+
+function symbolChar(block) {
+  if (block.symbol_display) return block.symbol_display;
+  const map = {
+    high_priority: '\u2605',
+    rollover:      '\u25a1',
+    completed:     '\u2611',
+    statement:     '\u00b0',
+    waiting:       'WO/',
+    decision:      '[D]',
+    low:           '\u2022',
+    info:          '',
+    tag_header:    '',
+    arrow:         '\u2192',
+  };
+  return map[block.type] || '';
+}
+
+function renderBlocks(blocks, lines, depth) {
+  const indent = '    '.repeat(depth);
+  blocks.forEach(block => {
+    const sym  = symbolChar(block);
+    const tag  = block.tag  ? ' [' + block.tag + ']' : '';
+    const due  = block.due_date ? ' \u2014 DUE: ' + block.due_date : '';
+    const who  = block.waiting_on ? ' \u2014 WO/ ' + block.waiting_on : '';
+    const text = block.text || '';
+
+    let line = indent;
+    if (sym) line += sym + '  ';
+    line += text + tag + due + who;
+
+    lines.push({ text: line, style: 'NORMAL' });
+
+    if (block.children && block.children.length) {
+      renderBlocks(block.children, lines, depth + 1);
+    }
+  });
 }
 
 function buildDocRequests(lines) {
@@ -1150,22 +1150,14 @@ async function getOrCreateFolder(token, name, parentId) {
 // ── GOOGLE KEEP (via Gmail) ───────────────────────────────────────────────────
 
 async function sendToKeep(data, token) {
-  const subject = '\ud83d\udcd3 ' + (data.day_label || new Date().toDateString());
-  const high      = (data.action_items || []).filter(i => i.type === 'high_priority').sort((a,b) => (a.priority_rank||99)-(b.priority_rank||99));
-  const rollover  = (data.action_items || []).filter(i => i.type === 'rollover');
-  const waiting   = (data.action_items || []).filter(i => i.type === 'waiting');
-  const decisions = (data.action_items || []).filter(i => i.type === 'decision');
-  const statements = data.statements || [];
-  const deadlines  = data.deadlines  || [];
+  const subject = '\ud83d\udcd3 ' + (data.day_label || new Date().toDateString()) + (data.meeting_context ? ' \u2014 ' + data.meeting_context : '');
 
   let body = '';
-  if (high.length)       body += 'HIGH PRIORITY\n'  + high.map(i      => (i.priority_rank ? '#'+i.priority_rank+' ' : '') + '- ' + i.task + (i.due_date ? ' [DUE: '+i.due_date+']' : '')).join('\n') + '\n\n';
-  if (rollover.length)   body += 'ROLLOVER\n'        + rollover.map(i  => '- ' + i.task).join('\n') + '\n\n';
-  if (waiting.length)    body += 'WAITING ON\n'      + waiting.map(i   => '- ' + i.task + (i.waiting_on ? ' — ' + i.waiting_on : '')).join('\n') + '\n\n';
-  if (decisions.length)  body += 'DECISIONS\n'       + decisions.map(i => '- ' + i.task).join('\n') + '\n\n';
-  if (deadlines.length)  body += 'DEADLINES\n'       + deadlines.map(d => '- ' + d.task + ' — DUE: ' + d.due_date).join('\n') + '\n\n';
-  if (statements.length) body += 'STATEMENTS\n'      + statements.map(s => '- ' + s.person + ': "' + s.quote + '"').join('\n') + '\n\n';
-  if (!body) body = (data.action_items || []).map(i => '- ' + i.task).join('\n') || 'No items.';
+  if (data.key_takeaways && data.key_takeaways.length) {
+    body += 'KEY TAKEAWAYS\n' + data.key_takeaways.map(t => '- ' + t).join('\n') + '\n';
+  } else {
+    body = 'No takeaways captured.';
+  }
 
   const email = 'To: me\r\nSubject: ' + subject + '\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n' + body;
   const encoded = btoa(unescape(encodeURIComponent(email))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
