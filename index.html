@@ -668,24 +668,36 @@ let googleToken = null;
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 
-window.addEventListener('load', () => {
-  const cfg = loadCfg();
-  document.getElementById('cfg-gemini-key').value = cfg.geminiKey || '';
-  document.getElementById('cfg-client-id').value  = cfg.clientId  || '';
-  document.getElementById('cfg-folder').value     = cfg.folder    || 'Daily Notes';
-
-  outputMode = cfg.lastOutput || 'docs';
-  setOutputToggle(outputMode);
-
-  if (cfg.googleToken) {
-    googleToken = cfg.googleToken;
-    showAuthStatus(true);
-  }
+// Load saved config into settings fields
+  try {
+    const cfg = loadCfg();
+    document.getElementById('cfg-gemini-key').value = cfg.geminiKey || '';
+    document.getElementById('cfg-client-id').value  = cfg.clientId  || '';
+    document.getElementById('cfg-folder').value     = cfg.folder    || 'Daily Notes';
+    outputMode = cfg.lastOutput || 'docs';
+    setOutputToggle(outputMode);
+    if (cfg.googleToken) {
+      googleToken = cfg.googleToken;
+      showAuthStatus(true);
+    }
+  } catch(e) { console.warn('Config load error:', e); }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
-});
+
+// ── DOM READY ─────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', initApp);
+// Also handle case where DOMContentLoaded already fired
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  initApp();
+}
+
+function initApp() {
+  // Guard against double-init
+  if (window._noteSyncInitDone) return;
+  window._noteSyncInitDone = true;
 
 // ── IMAGE CAPTURE ─────────────────────────────────────────────────────────────
 
@@ -778,21 +790,22 @@ document.getElementById('auth-btn').addEventListener('click', () => {
 });
 
 // Handle OAuth redirect
-(function handleOAuthRedirect() {
-  const hash = window.location.hash;
-  if (!hash.includes('access_token')) return;
-  const params = new URLSearchParams(hash.slice(1));
-  const token = params.get('access_token');
-  if (token) {
-    googleToken = token;
-    const cfg = loadCfg();
-    cfg.googleToken = token;
-    saveCfg(cfg);
-    window.history.replaceState({}, '', window.location.pathname);
-    showAuthStatus(true);
-    showToast('Google account connected ✓');
-  }
-})();
+  try {
+    const hash = window.location.hash;
+    if (hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.slice(1));
+      const token = params.get('access_token');
+      if (token) {
+        googleToken = token;
+        const cfg = loadCfg();
+        cfg.googleToken = token;
+        saveCfg(cfg);
+        window.history.replaceState({}, '', window.location.pathname);
+        showAuthStatus(true);
+        showToast('Google account connected ✓');
+      }
+    }
+  } catch(e) { console.warn('OAuth redirect error:', e); }
 
 function showAuthStatus(ok) {
   const el = document.getElementById('auth-status');
@@ -1443,6 +1456,8 @@ function showToast(msg) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+} // end initApp
 </script>
 </body>
 </html>
