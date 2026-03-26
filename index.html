@@ -648,6 +648,7 @@
 <div id="toast"></div>
 
 <script>
+
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 
 const CFG_KEY = 'notesync_config';
@@ -661,55 +662,134 @@ function saveCfg(cfg) {
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 
-let imageFile = null;
+let imageFile   = null;
 let imageBase64 = null;
-let outputMode = 'docs';
+let outputMode  = 'docs';
 let googleToken = null;
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
+// ── BOOT ──────────────────────────────────────────────────────────────────────
 
-// Load saved config into settings fields
-  try {
-    const cfg = loadCfg();
-    document.getElementById('cfg-gemini-key').value = cfg.geminiKey || '';
-    document.getElementById('cfg-client-id').value  = cfg.clientId  || '';
-    document.getElementById('cfg-folder').value     = cfg.folder    || 'Daily Notes';
-    outputMode = cfg.lastOutput || 'docs';
-    setOutputToggle(outputMode);
-    if (cfg.googleToken) {
-      googleToken = cfg.googleToken;
-      showAuthStatus(true);
-    }
-  } catch(e) { console.warn('Config load error:', e); }
+document.addEventListener('DOMContentLoaded', initApp);
 
+function initApp() {
+  console.log('[NoteSync] initApp fired, readyState=' + document.readyState);
+
+  // ── Restore saved config into settings fields ───────────────────────────────
+  const cfg = loadCfg();
+  document.getElementById('cfg-gemini-key').value = cfg.geminiKey || '';
+  document.getElementById('cfg-client-id').value  = cfg.clientId  || '';
+  document.getElementById('cfg-folder').value     = cfg.folder    || 'Daily Notes';
+  outputMode = cfg.lastOutput || 'docs';
+  setOutputToggle(outputMode);
+  if (cfg.googleToken) {
+    googleToken = cfg.googleToken;
+    showAuthStatus(true);
+  }
+
+  // ── Service worker ──────────────────────────────────────────────────────────
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-// ── DOM READY ─────────────────────────────────────────────────────────────────
+  // ── Handle OAuth redirect token in URL hash ─────────────────────────────────
+  try {
+    const hash = window.location.hash;
+    if (hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.slice(1));
+      const token  = params.get('access_token');
+      if (token) {
+        googleToken = token;
+        const c = loadCfg();
+        c.googleToken = token;
+        saveCfg(c);
+        window.history.replaceState({}, '', window.location.pathname);
+        showAuthStatus(true);
+        showToast('Google account connected \u2713');
+      }
+    }
+  } catch(e) { console.warn('OAuth redirect error:', e); }
 
-document.addEventListener('DOMContentLoaded', initApp);
-// Also handle case where DOMContentLoaded already fired
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
-  initApp();
-}
+  // ── Settings modal ──────────────────────────────────────────────────────────
+  const _sBtn = document.getElementById('settings-btn');
+  console.log('[NoteSync] settings-btn found:', !!_sBtn);
+  if (_sBtn) {
+    _sBtn.addEventListener('click', () => {
+      console.log('[NoteSync] settings-btn clicked');
+      document.getElementById('modal-backdrop').classList.add('open');
+    });
+  }
+  document.getElementById('modal-backdrop').addEventListener('click', e => {
+    if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+  });
+  document.getElementById('save-cfg-btn').addEventListener('click', () => {
+    const c = loadCfg();
+    c.geminiKey = document.getElementById('cfg-gemini-key').value.trim();
+    c.clientId  = document.getElementById('cfg-client-id').value.trim();
+    c.folder    = document.getElementById('cfg-folder').value.trim() || 'Daily Notes';
+    saveCfg(c);
+    showToast('Settings saved \u2713');
+    document.getElementById('modal-backdrop').classList.remove('open');
+  });
 
-function initApp() {
-  // Guard against double-init
-  if (window._noteSyncInitDone) return;
-  window._noteSyncInitDone = true;
+  // ── Google Auth button ──────────────────────────────────────────────────────
+  document.getElementById('auth-btn').addEventListener('click', () => {
+    const c = loadCfg();
+    if (!c.clientId) { showToast('Enter your Google Client ID first'); return; }
+    const params = new URLSearchParams({
+      client_id:     c.clientId,
+      redirect_uri:  window.location.origin + window.location.pathname,
+      response_type: 'token',
+      scope: [
+        'https://www.googleapis.com/auth/documents',
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/gmail.send',
+      ].join(' '),
+      prompt: 'consent',
+    });
+    window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
+  });
 
-// ── IMAGE CAPTURE ─────────────────────────────────────────────────────────────
+  // ── Image capture ───────────────────────────────────────────────────────────
+  document.getElementById('camera-btn').addEventListener('click', () => {
+    document.getElementById('camera-input').click();
+  });
+  document.getElementById('gallery-btn').addEventListener('click', () => {
+    document.getElementById('gallery-input').click();
+  });
+  document.getElementById('capture-zone').addEventListener('click', () => {
+    if (imageFile) document.getElementById('gallery-input').click();
+  });
+  document.getElementById('camera-input').addEventListener('change',  e => handleFile(e.target.files[0]));
+  document.getElementById('gallery-input').addEventListener('change', e => handleFile(e.target.files[0]));
 
-document.getElementById('camera-btn').addEventListener('click', () => {
-  document.getElementById('camera-input').click();
-});
-document.getElementById('gallery-btn').addEventListener('click', () => {
-  document.getElementById('gallery-input').click();
-});
-document.getElementById('capture-zone').addEventListener('click', () => {
-  if (imageFile) document.getElementById('gallery-input').click();
-});
+  // ── Output toggle ───────────────────────────────────────────────────────────
+  document.querySelectorAll('.toggle-option').forEach(el => {
+    el.addEventListener('click', () => {
+      setOutputToggle(el.dataset.value);
+      const c = loadCfg(); c.lastOutput = outputMode; saveCfg(c);
+    });
+  });
+
+  // ── Process button ──────────────────────────────────────────────────────────
+  document.getElementById('process-btn').addEventListener('click', processNotes);
+
+  // ── Reset button ────────────────────────────────────────────────────────────
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    imageFile = null; imageBase64 = null;
+    const img = document.getElementById('preview-img');
+    img.src = ''; img.style.display = 'none';
+    document.getElementById('capture-placeholder').style.display = 'flex';
+    document.getElementById('capture-zone').classList.remove('has-image');
+    document.getElementById('process-btn').disabled = true;
+    document.getElementById('status-card').classList.remove('visible');
+    document.getElementById('result-card').classList.remove('visible');
+    document.getElementById('camera-input').value  = '';
+    document.getElementById('gallery-input').value = '';
+  });
+
+} // end initApp
+
+// ── HELPERS (outside initApp — safe to call any time) ────────────────────────
 
 function handleFile(file) {
   if (!file) return;
@@ -727,11 +807,6 @@ function handleFile(file) {
   reader.readAsDataURL(file);
 }
 
-document.getElementById('camera-input').addEventListener('change', e => handleFile(e.target.files[0]));
-document.getElementById('gallery-input').addEventListener('change', e => handleFile(e.target.files[0]));
-
-// ── OUTPUT TOGGLE ─────────────────────────────────────────────────────────────
-
 function setOutputToggle(value) {
   outputMode = value;
   document.querySelectorAll('.toggle-option').forEach(el => {
@@ -739,167 +814,112 @@ function setOutputToggle(value) {
   });
 }
 
-document.querySelectorAll('.toggle-option').forEach(el => {
-  el.addEventListener('click', () => {
-    setOutputToggle(el.dataset.value);
-    const cfg = loadCfg();
-    cfg.lastOutput = outputMode;
-    saveCfg(cfg);
-  });
-});
-
-// ── SETTINGS MODAL ────────────────────────────────────────────────────────────
-
-document.getElementById('settings-btn').addEventListener('click', () => {
-  document.getElementById('modal-backdrop').classList.add('open');
-});
-document.getElementById('modal-backdrop').addEventListener('click', e => {
-  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
-});
-
-document.getElementById('save-cfg-btn').addEventListener('click', () => {
-  const cfg = loadCfg();
-  cfg.geminiKey = document.getElementById('cfg-gemini-key').value.trim();
-  cfg.clientId  = document.getElementById('cfg-client-id').value.trim();
-  cfg.folder    = document.getElementById('cfg-folder').value.trim() || 'Daily Notes';
-  saveCfg(cfg);
-  showToast('Settings saved ✓');
-  document.getElementById('modal-backdrop').classList.remove('open');
-});
-
-// ── GOOGLE AUTH ───────────────────────────────────────────────────────────────
-
-document.getElementById('auth-btn').addEventListener('click', () => {
-  const cfg = loadCfg();
-  if (!cfg.clientId) {
-    showToast('Enter your Google Client ID first');
-    return;
-  }
-  const params = new URLSearchParams({
-    client_id:     cfg.clientId,
-    redirect_uri:  window.location.origin + window.location.pathname,
-    response_type: 'token',
-    scope: [
-      'https://www.googleapis.com/auth/documents',
-      'https://www.googleapis.com/auth/drive.file',
-      'https://www.googleapis.com/auth/keep',
-    ].join(' '),
-    prompt: 'consent',
-  });
-  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
-});
-
-// Handle OAuth redirect
-  try {
-    const hash = window.location.hash;
-    if (hash.includes('access_token')) {
-      const params = new URLSearchParams(hash.slice(1));
-      const token = params.get('access_token');
-      if (token) {
-        googleToken = token;
-        const cfg = loadCfg();
-        cfg.googleToken = token;
-        saveCfg(cfg);
-        window.history.replaceState({}, '', window.location.pathname);
-        showAuthStatus(true);
-        showToast('Google account connected ✓');
-      }
-    }
-  } catch(e) { console.warn('OAuth redirect error:', e); }
-
 function showAuthStatus(ok) {
   const el = document.getElementById('auth-status');
   el.style.display = 'block';
   el.className = 'auth-status ' + (ok ? 'ok' : 'fail');
-  el.textContent = ok ? '✓ Google account connected' : '✗ Not connected';
-  document.getElementById('auth-btn').textContent = ok ? '🔄 Reconnect Google Account' : '🔐 Connect Google Account';
+  el.textContent = ok ? '\u2713 Google account connected' : '\u2717 Not connected';
+  document.getElementById('auth-btn').textContent = ok
+    ? '\ud83d\udd04 Reconnect Google Account'
+    : '\ud83d\udd10 Connect Google Account';
 }
-
-// ── STEP HELPERS ──────────────────────────────────────────────────────────────
 
 function setStep(id, state, symbol) {
   const step = document.getElementById('step-' + id);
   const dot  = document.getElementById('dot-'  + id);
+  if (!step || !dot) return;
   step.className = 'status-step ' + state;
-  dot.textContent = symbol || { active: '…', done: '✓', error: '✗' }[state] || id;
+  dot.textContent = symbol || { active: '\u2026', done: '\u2713', error: '\u2717' }[state] || id;
 }
 
 function resetSteps() {
-  ['gemini','parse','docs','keep'].forEach(id => setStep(id, '', ['gemini','parse','docs','keep'].indexOf(id)+1));
+  ['gemini','parse','docs','keep'].forEach((id, i) => setStep(id, '', String(i + 1)));
 }
+
+function showResults(links) {
+  const container = document.getElementById('result-links');
+  container.innerHTML = links.map(l =>
+    '<a class="result-link" href="' + l.url + '" target="_blank" rel="noopener">' +
+    '<span class="link-icon">' + l.icon + '</span>' +
+    '<div><div>' + l.label + '</div><div class="link-meta">' + l.sub + '</div></div>' +
+    '<span style="margin-left:auto;color:var(--muted)">\u2192</span></a>'
+  ).join('');
+  document.getElementById('result-card').classList.add('visible');
+  document.getElementById('process-btn').disabled = false;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── MAIN PROCESS ─────────────────────────────────────────────────────────────
 
-document.getElementById('process-btn').addEventListener('click', processNotes);
-
 async function processNotes() {
   const cfg = loadCfg();
+  if (!cfg.geminiKey)  { showToast('Add your Gemini API key in Settings \u2699\ufe0f'); return; }
+  if (!googleToken)    { showToast('Connect your Google account in Settings \u2699\ufe0f'); return; }
+  if (!imageBase64)    { showToast('Please capture a photo first'); return; }
 
-  if (!cfg.geminiKey) { showToast('Add your Gemini API key in Settings ⚙️'); return; }
-  if (!googleToken)   { showToast('Connect your Google account in Settings ⚙️'); return; }
-  if (!imageBase64)   { showToast('Please capture a photo first'); return; }
-
-  // Show status
   document.getElementById('status-card').classList.add('visible');
   document.getElementById('result-card').classList.remove('visible');
   document.getElementById('process-btn').disabled = true;
   resetSteps();
 
-  // Show/hide Keep step
   const keepStep = document.getElementById('step-keep');
-  keepStep.style.display = (outputMode === 'docs') ? 'none' : 'flex';
   const docsStep = document.getElementById('step-docs');
+  keepStep.style.display = (outputMode === 'docs') ? 'none' : 'flex';
   docsStep.style.display = (outputMode === 'keep') ? 'none' : 'flex';
 
+  const links = [];
+
   try {
-    // Step 1: Gemini transcription
     setStep('gemini', 'active');
     const structured = await transcribeWithGemini(imageBase64, imageFile.type, cfg.geminiKey);
     setStep('gemini', 'done');
 
-    // Step 2: Parse/structure
     setStep('parse', 'active');
     await sleep(400);
     setStep('parse', 'done');
 
-    const links = [];
-
-    // Check for tag conflicts before proceeding
-    if (structured.context_tags?.length) {
-      const tagResult = await updateTagRegistry(structured.context_tags, googleToken, cfg.folder, structured.day_label);
-      if (tagResult?.conflicts?.length) {
-        await new Promise((resolve, reject) => {
-          showConflictWarning(tagResult.conflicts,
-            () => resolve(),
-            () => reject(new Error('Cancelled — please review your tags and reprocess.'))
-          );
-        });
-      }
-      if (tagResult?.registryDocId) {
-        links.push({ icon: '📋', label: 'Tag Registry', sub: 'View all your context tags', url: `https://docs.google.com/document/d/${tagResult.registryDocId}/edit` });
+    // Tag Registry
+    if (structured.context_tags && structured.context_tags.length) {
+      try {
+        const tagResult = await updateTagRegistry(structured.context_tags, googleToken, cfg.folder, structured.day_label);
+        if (tagResult && tagResult.conflicts && tagResult.conflicts.length) {
+          await new Promise((resolve, reject) => {
+            showConflictWarning(tagResult.conflicts, resolve, () => reject(new Error('Cancelled \u2014 review your tags and reprocess.')));
+          });
+        }
+        if (tagResult && tagResult.registryDocId) {
+          links.push({ icon: '\ud83d\udccb', label: 'Tag Registry', sub: 'View all context tags', url: 'https://docs.google.com/document/d/' + tagResult.registryDocId + '/edit' });
+        }
+      } catch(tagErr) {
+        console.warn('Tag registry error (non-fatal):', tagErr);
       }
     }
 
-    // Step 3: Google Doc
     if (outputMode !== 'keep') {
       setStep('docs', 'active');
       const docUrl = await createGoogleDoc(structured, googleToken, cfg.folder);
       setStep('docs', 'done');
-      links.push({ icon: '📄', label: 'Open Google Doc', sub: 'Full structured notes', url: docUrl });
+      links.push({ icon: '\ud83d\udcc4', label: 'Open Google Doc', sub: 'Full structured notes', url: docUrl });
     }
 
-    // Step 4: Google Keep (via Gmail → Keep)
     if (outputMode !== 'docs') {
       setStep('keep', 'active');
       await sendToKeep(structured, googleToken);
       setStep('keep', 'done');
-      links.push({ icon: '📌', label: 'Open Google Keep', sub: 'Action items summary', url: 'https://keep.google.com' });
+      links.push({ icon: '\ud83d\udccc', label: 'Open Google Keep', sub: 'Action items summary', url: 'https://keep.google.com' });
     }
 
-    // Show results
     showResults(links);
 
-  } catch (err) {
+  } catch(err) {
     console.error(err);
     showToast('Error: ' + err.message);
     document.getElementById('process-btn').disabled = false;
@@ -909,7 +929,7 @@ async function processNotes() {
 // ── GEMINI TRANSCRIPTION ──────────────────────────────────────────────────────
 
 async function transcribeWithGemini(base64, mimeType, apiKey) {
-  const prompt = `You are an expert at reading handwritten notes. Analyze this image and return ONLY valid JSON — no markdown, no explanation.
+  const prompt = `You are an expert at reading handwritten notes. Analyze this image and return ONLY valid JSON, no markdown, no explanation.
 
 JSON structure:
 {
@@ -942,34 +962,21 @@ JSON structure:
   ]
 }
 
-Symbol and notation rules — apply EXACTLY:
-
-SYMBOLS:
-- Star (*) or circled number (circle with number inside) = type high_priority. The circled number IS the priority_rank (1=highest).
-- Empty checkbox = type rollover (task not yet done, carries forward to next day)
-- Checkbox with checkmark or X inside = type completed
-- Open circle (degree symbol or small circle) before text = STATEMENT by someone — goes to statements array ONLY, not action_items
-- WO/ NAME = type waiting, set waiting_on to the person name written after WO/
-- Text prefixed with [D] = type decision (a decision that was made, not a task)
-- Bullet point or dash = type low
-- Plain text with no symbol = type info
-- A standalone X mark is NOT high priority — only X inside a checkbox means completed
-
-CONTEXT TAGS:
-- Text in square brackets like [AFC] or [DM] = context tag. Extract ALL found into context_tags array.
-- Try to infer full_name from nearby text (e.g. [AFC] near Air France text = full_name Air France Call)
-- Attach the nearest visible tag to each action_item tag field, statement tag field, and project tag field
-
-DEADLINES:
-- DUE: followed by a date = extract as due_date on the action_item AND add entry to deadlines array
-- Any clearly deadline-related standalone date reference also goes in deadlines array
-
-PRIORITY RANKING:
-- Circled numbers = use the number as priority_rank integer value
-- Stars without numbers = set priority_rank to null`;
+Symbol rules:
+- Star or circled number = high_priority. Circled number = priority_rank.
+- Empty checkbox = rollover.
+- Checkbox with checkmark or X inside = completed.
+- Circle before text = statement, goes to statements array only.
+- WO/ NAME = waiting, set waiting_on to the name.
+- [D] prefix = decision.
+- Bullet or dash = low.
+- Plain text = info.
+- Standalone X is NOT high priority.
+- Square brackets like [AFC] = context tag, extract to context_tags.
+- DUE: date = extract to due_date and deadlines array.`;
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -986,178 +993,125 @@ PRIORITY RANKING:
 
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error?.message || 'Gemini API error');
+    throw new Error(err.error && err.error.message ? err.error.message : 'Gemini API error');
   }
 
   const data = await res.json();
-  let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+  let raw = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) ? data.candidates[0].content.parts[0].text : '{}';
   raw = raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'').trim();
 
   try { return JSON.parse(raw); }
-  catch { return { day_label: new Date().toDateString(), action_items: [], projects: [], reference_notes: [raw], highlighted_items: [] }; }
+  catch { return { day_label: new Date().toDateString(), action_items: [], projects: [], statements: [], reference_notes: [raw], highlighted_items: [], deadlines: [], context_tags: [] }; }
 }
 
 // ── GOOGLE DOCS ───────────────────────────────────────────────────────────────
 
 async function createGoogleDoc(data, token, folderName) {
   const today = new Date();
-  const title = `📓 Daily Notes — ${data.day_label || today.toDateString()}`;
-
-  // Build document body as plain text with structure markers
-  const lines = buildDocContent(data);
-
-  // Create the doc
+  const title = '\ud83d\udcd3 Daily Notes \u2014 ' + (data.day_label || today.toDateString());
+  const lines  = buildDocContent(data);
   const createRes = await gFetch('https://docs.googleapis.com/v1/documents', token, 'POST', { title });
-  const docId = createRes.documentId;
-  const docUrl = `https://docs.google.com/document/d/${docId}/edit`;
-
-  // Batch update with content
+  const docId  = createRes.documentId;
+  const docUrl = 'https://docs.google.com/document/d/' + docId + '/edit';
   const requests = buildDocRequests(lines);
   if (requests.length) {
-    await gFetch(`https://docs.googleapis.com/v1/documents/${docId}:batchUpdate`, token, 'POST', { requests });
+    await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST', { requests });
   }
-
-  // Move to folder
   await moveToFolder(docId, token, folderName, today);
-
   return docUrl;
 }
 
 function buildDocContent(data) {
   const lines = [];
   const d = data;
-
   lines.push({ text: d.day_label || new Date().toDateString(), style: 'TITLE' });
 
-  const typeLabel = {
-    high_priority: '🔴',
-    rollover:      '🔄',
-    waiting:       '⏳',
-    decision:      '✳️',
-    low:           '🟢',
-    info:          '⚪',
-  };
-
-  // ── High Priority (sorted by rank) ──
-  const high = (d.action_items || []).filter(i => i.type === 'high_priority')
-    .sort((a,b) => (a.priority_rank||99) - (b.priority_rank||99));
-  if (high.length) {
-    lines.push({ text: '⚡ Action Items', style: 'HEADING_1' });
-    high.forEach(item => {
-      const rank = item.priority_rank ? `#${item.priority_rank} ` : '';
-      const tag  = item.tag ? ` ${item.tag}` : '';
-      const due  = item.due_date ? `  [DUE: ${item.due_date}]` : '';
-      lines.push({ text: `🔴  ${rank}${item.task}${tag}${due}`, style: 'NORMAL' });
-    });
-  }
-
-  // ── Rollover ──
-  const rollover = (d.action_items || []).filter(i => i.type === 'rollover');
-  if (rollover.length) {
-    lines.push({ text: '🔄 Rollover Tasks', style: 'HEADING_1' });
-    rollover.forEach(item => {
-      const tag = item.tag ? ` ${item.tag}` : '';
-      const due = item.due_date ? `  [DUE: ${item.due_date}]` : '';
-      lines.push({ text: `🔄  ${item.task}${tag}${due}`, style: 'NORMAL' });
-    });
-  }
-
-  // ── Waiting On ──
-  const waiting = (d.action_items || []).filter(i => i.type === 'waiting');
-  if (waiting.length) {
-    lines.push({ text: '⏳ Waiting On', style: 'HEADING_1' });
-    waiting.forEach(item => {
-      const who = item.waiting_on ? ` — ${item.waiting_on}` : '';
-      const tag = item.tag ? ` ${item.tag}` : '';
-      lines.push({ text: `⏳  ${item.task}${who}${tag}`, style: 'NORMAL' });
-    });
-  }
-
-  // ── Decisions ──
+  const high      = (d.action_items || []).filter(i => i.type === 'high_priority').sort((a,b) => (a.priority_rank||99)-(b.priority_rank||99));
+  const rollover  = (d.action_items || []).filter(i => i.type === 'rollover');
+  const waiting   = (d.action_items || []).filter(i => i.type === 'waiting');
   const decisions = (d.action_items || []).filter(i => i.type === 'decision');
+  const done      = (d.action_items || []).filter(i => i.type === 'completed');
+  const other     = (d.action_items || []).filter(i => ['low','info'].includes(i.type));
+
+  if (high.length) {
+    lines.push({ text: '\u26a1 Action Items', style: 'HEADING_1' });
+    high.forEach(item => {
+      const rank = item.priority_rank ? '#' + item.priority_rank + ' ' : '';
+      const tag  = item.tag ? ' ' + item.tag : '';
+      const due  = item.due_date ? '  [DUE: ' + item.due_date + ']' : '';
+      lines.push({ text: '\ud83d\udd34  ' + rank + item.task + tag + due, style: 'NORMAL' });
+    });
+  }
+  if (rollover.length) {
+    lines.push({ text: '\ud83d\udd04 Rollover Tasks', style: 'HEADING_1' });
+    rollover.forEach(item => {
+      const tag = item.tag ? ' ' + item.tag : '';
+      const due = item.due_date ? '  [DUE: ' + item.due_date + ']' : '';
+      lines.push({ text: '\ud83d\udd04  ' + item.task + tag + due, style: 'NORMAL' });
+    });
+  }
+  if (waiting.length) {
+    lines.push({ text: '\u23f3 Waiting On', style: 'HEADING_1' });
+    waiting.forEach(item => {
+      const who = item.waiting_on ? ' \u2014 ' + item.waiting_on : '';
+      const tag = item.tag ? ' ' + item.tag : '';
+      lines.push({ text: '\u23f3  ' + item.task + who + tag, style: 'NORMAL' });
+    });
+  }
   if (decisions.length) {
-    lines.push({ text: '✳️ Decisions Made', style: 'HEADING_1' });
+    lines.push({ text: '\u2733\ufe0f Decisions Made', style: 'HEADING_1' });
     decisions.forEach(item => {
-      const tag = item.tag ? ` ${item.tag}` : '';
-      lines.push({ text: `✳️  ${item.task}${tag}`, style: 'NORMAL' });
+      lines.push({ text: '\u2733\ufe0f  ' + item.task + (item.tag ? ' ' + item.tag : ''), style: 'NORMAL' });
     });
   }
-
-  // ── Completed ──
-  const done = (d.action_items || []).filter(i => i.type === 'completed');
   if (done.length) {
-    lines.push({ text: '✅ Completed Tasks', style: 'HEADING_1' });
-    done.forEach(item => {
-      lines.push({ text: `✅  ${item.task}`, style: 'NORMAL' });
-    });
+    lines.push({ text: '\u2705 Completed Tasks', style: 'HEADING_1' });
+    done.forEach(item => lines.push({ text: '\u2705  ' + item.task, style: 'NORMAL' }));
   }
-
-  // ── Other items ──
-  const other = (d.action_items || []).filter(i => ['low','info'].includes(i.type));
-  if (other.length) {
-    lines.push({ text: '📝 Notes', style: 'HEADING_1' });
-    other.forEach(item => {
-      const badge = typeLabel[item.type] || '⚪';
-      const tag = item.tag ? ` ${item.tag}` : '';
-      lines.push({ text: `${badge}  ${item.task}${tag}`, style: 'NORMAL' });
-    });
-  }
-
-  // ── Deadlines ──
-  if (d.deadlines?.length) {
-    lines.push({ text: '📅 Deadlines', style: 'HEADING_1' });
+  if (d.deadlines && d.deadlines.length) {
+    lines.push({ text: '\ud83d\udcc5 Deadlines', style: 'HEADING_1' });
     d.deadlines.forEach(dl => {
-      const tag = dl.tag ? ` ${dl.tag}` : '';
-      lines.push({ text: `📅  ${dl.task} — DUE: ${dl.due_date}${tag}`, style: 'NORMAL' });
+      lines.push({ text: '\ud83d\udcc5  ' + dl.task + ' \u2014 DUE: ' + dl.due_date + (dl.tag ? ' ' + dl.tag : ''), style: 'NORMAL' });
     });
   }
-
-  // ── Recorded Statements ──
-  if (d.statements?.length) {
-    lines.push({ text: '💬 Recorded Statements', style: 'HEADING_1' });
+  if (d.statements && d.statements.length) {
+    lines.push({ text: '\ud83d\udcac Recorded Statements', style: 'HEADING_1' });
     d.statements.forEach(s => {
-      const ctx = s.context ? ` [${s.context}]` : '';
-      const tag = s.tag ? ` ${s.tag}` : '';
-      lines.push({ text: `${s.person}${ctx}${tag}: "${s.quote}"`, style: 'NORMAL' });
-      lines.push({ text: `Recorded: ${d.day_label || new Date().toDateString()}`, style: 'NORMAL' });
+      const ctx = s.context ? ' [' + s.context + ']' : '';
+      const tag = s.tag ? ' ' + s.tag : '';
+      lines.push({ text: s.person + ctx + tag + ': "' + s.quote + '"', style: 'NORMAL' });
+      lines.push({ text: 'Recorded: ' + (d.day_label || new Date().toDateString()), style: 'NORMAL' });
     });
   }
-
-  // ── Projects ──
-  if (d.projects?.length) {
-    lines.push({ text: '📁 Projects', style: 'HEADING_1' });
+  if (d.projects && d.projects.length) {
+    lines.push({ text: '\ud83d\udcc1 Projects', style: 'HEADING_1' });
     d.projects.forEach(proj => {
-      const tag = proj.tag ? ` ${proj.tag}` : '';
-      lines.push({ text: `${proj.name}${tag}`, style: 'HEADING_2' });
-      proj.details?.forEach(detail => lines.push({ text: `• ${detail}`, style: 'NORMAL' }));
-      proj.follow_ups?.forEach(f => lines.push({ text: `📌 ${f}`, style: 'NORMAL' }));
+      lines.push({ text: proj.name + (proj.tag ? ' ' + proj.tag : ''), style: 'HEADING_2' });
+      (proj.details || []).forEach(detail => lines.push({ text: '\u2022 ' + detail, style: 'NORMAL' }));
+      (proj.follow_ups || []).forEach(f => lines.push({ text: '\ud83d\udccc ' + f, style: 'NORMAL' }));
     });
   }
-
-  // ── Reference Notes ──
-  if (d.reference_notes?.length) {
-    lines.push({ text: '📝 Reference Notes', style: 'HEADING_1' });
+  if (other.length) {
+    lines.push({ text: '\ud83d\udcdd Notes', style: 'HEADING_1' });
+    other.forEach(item => lines.push({ text: (item.type === 'low' ? '\ud83d\udfe2' : '\u26aa') + '  ' + item.task, style: 'NORMAL' }));
+  }
+  if (d.reference_notes && d.reference_notes.length) {
+    lines.push({ text: '\ud83d\udcdd Reference Notes', style: 'HEADING_1' });
     d.reference_notes.forEach(n => lines.push({ text: n, style: 'NORMAL' }));
   }
-
-  // ── Highlighted ──
-  if (d.highlighted_items?.length) {
-    lines.push({ text: '🟡 Highlighted', style: 'HEADING_1' });
+  if (d.highlighted_items && d.highlighted_items.length) {
+    lines.push({ text: '\ud83d\udfe1 Highlighted', style: 'HEADING_1' });
     d.highlighted_items.forEach(h => lines.push({ text: h, style: 'NORMAL' }));
   }
-
   return lines;
 }
-
 
 function buildDocRequests(lines) {
   const requests = [];
   let index = 1;
-
   lines.forEach(line => {
     const text = line.text + '\n';
     requests.push({ insertText: { location: { index }, text } });
-
     if (line.style !== 'NORMAL') {
       requests.push({
         updateParagraphStyle: {
@@ -1169,32 +1123,24 @@ function buildDocRequests(lines) {
     }
     index += text.length;
   });
-
   return requests;
 }
 
 async function moveToFolder(docId, token, folderName, date) {
-  // Get or create root folder
-  const rootId = await getOrCreateFolder(token, folderName, null);
-  const yearId = await getOrCreateFolder(token, String(date.getFullYear()), rootId);
-  const month  = date.toLocaleString('default', { month: 'long' });
-  const monthId= await getOrCreateFolder(token, month, yearId);
-
-  // Move file
-  const fileRes = await gFetch(`https://www.googleapis.com/drive/v3/files/${docId}?fields=parents`, token, 'GET');
-  const prevParents = fileRes.parents?.join(',') || '';
-  await gFetch(
-    `https://www.googleapis.com/drive/v3/files/${docId}?addParents=${monthId}&removeParents=${prevParents}`,
-    token, 'PATCH', {}
-  );
+  const rootId  = await getOrCreateFolder(token, folderName, null);
+  const yearId  = await getOrCreateFolder(token, String(date.getFullYear()), rootId);
+  const month   = date.toLocaleString('default', { month: 'long' });
+  const monthId = await getOrCreateFolder(token, month, yearId);
+  const fileRes = await gFetch('https://www.googleapis.com/drive/v3/files/' + docId + '?fields=parents', token, 'GET');
+  const prevParents = (fileRes.parents || []).join(',');
+  await gFetch('https://www.googleapis.com/drive/v3/files/' + docId + '?addParents=' + monthId + '&removeParents=' + prevParents, token, 'PATCH', {});
 }
 
 async function getOrCreateFolder(token, name, parentId) {
-  let q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-  if (parentId) q += ` and '${parentId}' in parents`;
-  const res = await gFetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`, token, 'GET');
-  if (res.files?.length) return res.files[0].id;
-
+  let q = "name='" + name + "' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+  if (parentId) q += " and '" + parentId + "' in parents";
+  const res = await gFetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id)', token, 'GET');
+  if (res.files && res.files.length) return res.files[0].id;
   const body = { name, mimeType: 'application/vnd.google-apps.folder' };
   if (parentId) body.parents = [parentId];
   const created = await gFetch('https://www.googleapis.com/drive/v3/files?fields=id', token, 'POST', body);
@@ -1204,80 +1150,56 @@ async function getOrCreateFolder(token, name, parentId) {
 // ── GOOGLE KEEP (via Gmail) ───────────────────────────────────────────────────
 
 async function sendToKeep(data, token) {
-  const subject = `📓 ${data.day_label || new Date().toDateString()}`;
-
-  const high      = (data.action_items || []).filter(i => i.type === 'high_priority').sort((a,b)=>(a.priority_rank||99)-(b.priority_rank||99));
+  const subject = '\ud83d\udcd3 ' + (data.day_label || new Date().toDateString());
+  const high      = (data.action_items || []).filter(i => i.type === 'high_priority').sort((a,b) => (a.priority_rank||99)-(b.priority_rank||99));
   const rollover  = (data.action_items || []).filter(i => i.type === 'rollover');
   const waiting   = (data.action_items || []).filter(i => i.type === 'waiting');
   const decisions = (data.action_items || []).filter(i => i.type === 'decision');
   const statements = data.statements || [];
-  const deadlines  = data.deadlines || [];
+  const deadlines  = data.deadlines  || [];
 
   let body = '';
-  if (high.length)      body += '🔴 HIGH PRIORITY\n' + high.map(i => `${i.priority_rank ? '#'+i.priority_rank+' ' : ''}• ${i.task}${i.due_date ? ' [DUE: '+i.due_date+']' : ''}`).join('\n') + '\n\n';
-  if (rollover.length)  body += '🔄 ROLLOVER\n' + rollover.map(i => `• ${i.task}`).join('\n') + '\n\n';
-  if (waiting.length)   body += '⏳ WAITING ON\n' + waiting.map(i => `• ${i.task} — ${i.waiting_on||'?'}`).join('\n') + '\n\n';
-  if (decisions.length) body += '✳️ DECISIONS\n' + decisions.map(i => `• ${i.task}`).join('\n') + '\n\n';
-  if (deadlines.length) body += '📅 DEADLINES\n' + deadlines.map(d => `• ${d.task} — DUE: ${d.due_date}`).join('\n') + '\n\n';
-  if (statements.length) body += '💬 STATEMENTS\n' + statements.map(s => `• ${s.person}: "${s.quote}"`).join('\n') + '\n\n';
-  if (!body) body = (data.action_items || []).map(i => `• ${i.task}`).join('\n') || 'No items.';
+  if (high.length)       body += 'HIGH PRIORITY\n'  + high.map(i      => (i.priority_rank ? '#'+i.priority_rank+' ' : '') + '- ' + i.task + (i.due_date ? ' [DUE: '+i.due_date+']' : '')).join('\n') + '\n\n';
+  if (rollover.length)   body += 'ROLLOVER\n'        + rollover.map(i  => '- ' + i.task).join('\n') + '\n\n';
+  if (waiting.length)    body += 'WAITING ON\n'      + waiting.map(i   => '- ' + i.task + (i.waiting_on ? ' — ' + i.waiting_on : '')).join('\n') + '\n\n';
+  if (decisions.length)  body += 'DECISIONS\n'       + decisions.map(i => '- ' + i.task).join('\n') + '\n\n';
+  if (deadlines.length)  body += 'DEADLINES\n'       + deadlines.map(d => '- ' + d.task + ' — DUE: ' + d.due_date).join('\n') + '\n\n';
+  if (statements.length) body += 'STATEMENTS\n'      + statements.map(s => '- ' + s.person + ': "' + s.quote + '"').join('\n') + '\n\n';
+  if (!body) body = (data.action_items || []).map(i => '- ' + i.task).join('\n') || 'No items.';
 
-  const email = [
-    `To: me`,
-    `Subject: ${subject}`,
-    `Content-Type: text/plain; charset=utf-8`,
-    ``,
-    body
-  ].join('\r\n');
-
-  const encoded = btoa(unescape(encodeURIComponent(email)))
-    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-
+  const email = 'To: me\r\nSubject: ' + subject + '\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n' + body;
+  const encoded = btoa(unescape(encodeURIComponent(email))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', token, 'POST', { raw: encoded });
 }
 
-// ── TAG REGISTRY ─────────────────────────────────────────────────────────────
-
-const TAG_REGISTRY_DOC_KEY = 'notesync_tag_registry_doc_id';
+// ── TAG REGISTRY ──────────────────────────────────────────────────────────────
 
 async function updateTagRegistry(contextTags, token, folderName, dayLabel) {
   if (!contextTags || contextTags.length === 0) return null;
-
-  const stored = loadCfg();
-  let registryDocId = stored.tagRegistryDocId || null;
+  const storedCfg = loadCfg();
+  let registryDocId = storedCfg.tagRegistryDocId || null;
   const today = new Date().toISOString().split('T')[0];
-
-  // Load existing registry from Drive doc or create new one
-  let registry = {}; // { "AFC": { full_name, first_used, last_used } }
+  let registry = {};
 
   if (registryDocId) {
     try {
-      const doc = await gFetch(`https://docs.googleapis.com/v1/documents/${registryDocId}`, token, 'GET');
-      // Parse existing registry from doc body
-      const bodyText = doc.body?.content?.map(el =>
-        el.paragraph?.elements?.map(e => e.textRun?.content || '').join('')
-      ).join('') || '';
+      const doc = await gFetch('https://docs.googleapis.com/v1/documents/' + registryDocId, token, 'GET');
+      const bodyText = (doc.body && doc.body.content ? doc.body.content : []).map(el =>
+        (el.paragraph && el.paragraph.elements ? el.paragraph.elements : []).map(e => (e.textRun && e.textRun.content ? e.textRun.content : '')).join('')
+      ).join('');
       registry = parseRegistryFromText(bodyText);
-    } catch(e) {
-      // Doc may have been deleted — will recreate
-      registryDocId = null;
-    }
+    } catch(e) { registryDocId = null; }
   }
 
-  // Check for conflicts and new tags
   const conflicts = [];
-  const newTags = [];
+  const newTags   = [];
 
   for (const ct of contextTags) {
     const tagKey = ct.tag.toUpperCase().replace(/[\[\]]/g,'');
-    const existing = registry[tagKey];
-
-    if (existing) {
-      // Exact match — just update last_used
-      registry[tagKey].last_used = today;
+    if (registry[tagKey]) {
+      registry[tagKey].last_used       = today;
       registry[tagKey].last_used_label = dayLabel;
     } else {
-      // Check for similar tags (same first 2 chars)
       const similar = Object.keys(registry).filter(k =>
         k !== tagKey && (k.startsWith(tagKey.slice(0,2)) || tagKey.startsWith(k.slice(0,2)))
       );
@@ -1285,179 +1207,90 @@ async function updateTagRegistry(contextTags, token, folderName, dayLabel) {
         conflicts.push({ new_tag: tagKey, similar, full_name: ct.full_name });
       } else {
         newTags.push(tagKey);
-        registry[tagKey] = {
-          full_name: ct.full_name || ct.tag,
-          inferred_from: ct.inferred_from || '',
-          first_used: today,
-          first_used_label: dayLabel,
-          last_used: today,
-          last_used_label: dayLabel
-        };
+        registry[tagKey] = { full_name: ct.full_name || ct.tag, first_used: today, first_used_label: dayLabel, last_used: today, last_used_label: dayLabel };
       }
     }
   }
 
-  // Rebuild and save registry doc
   if (!registryDocId) {
-    // Create new registry doc
-    const createRes = await gFetch('https://docs.googleapis.com/v1/documents', token, 'POST',
-      { title: '📋 NoteSync — Tag Registry' });
+    const createRes = await gFetch('https://docs.googleapis.com/v1/documents', token, 'POST', { title: '\ud83d\udccb NoteSync \u2014 Tag Registry' });
     registryDocId = createRes.documentId;
-    // Save doc ID
-    const cfg = loadCfg();
-    cfg.tagRegistryDocId = registryDocId;
-    saveCfg(cfg);
-    // Move to root notes folder
-    const rootId = await getOrCreateFolder(token, folderName, null);
-    const fileRes = await gFetch(`https://www.googleapis.com/drive/v3/files/${registryDocId}?fields=parents`, token, 'GET');
-    const prevParents = fileRes.parents?.join(',') || '';
-    await gFetch(`https://www.googleapis.com/drive/v3/files/${registryDocId}?addParents=${rootId}&removeParents=${prevParents}`, token, 'PATCH', {});
+    const c = loadCfg(); c.tagRegistryDocId = registryDocId; saveCfg(c);
+    const rootId  = await getOrCreateFolder(token, folderName, null);
+    const fileRes = await gFetch('https://www.googleapis.com/drive/v3/files/' + registryDocId + '?fields=parents', token, 'GET');
+    const prev    = (fileRes.parents || []).join(',');
+    await gFetch('https://www.googleapis.com/drive/v3/files/' + registryDocId + '?addParents=' + rootId + '&removeParents=' + prev, token, 'PATCH', {});
   }
 
-  // Overwrite doc content with updated registry
   await rebuildRegistryDoc(registryDocId, registry, token);
-
   return { conflicts, newTags, registryDocId };
 }
 
 function parseRegistryFromText(text) {
   const registry = {};
-  const lines = text.split('
-');
-  for (const line of lines) {
-    // Format: TAG | Full Name | First Used | Last Used
+  text.split('\n').forEach(line => {
     const parts = line.split('|').map(s => s.trim());
     if (parts.length >= 4 && parts[0] && parts[0] !== 'TAG') {
-      registry[parts[0]] = {
-        full_name: parts[1] || '',
-        first_used: parts[2] || '',
-        first_used_label: parts[2] || '',
-        last_used: parts[3] || '',
-        last_used_label: parts[3] || ''
-      };
+      registry[parts[0]] = { full_name: parts[1]||'', first_used: parts[2]||'', first_used_label: parts[2]||'', last_used: parts[3]||'', last_used_label: parts[3]||'' };
     }
-  }
+  });
   return registry;
 }
 
 async function rebuildRegistryDoc(docId, registry, token) {
-  // Clear existing content first by getting current doc length
-  const doc = await gFetch(`https://docs.googleapis.com/v1/documents/${docId}`, token, 'GET');
-  const endIndex = doc.body?.content?.slice(-1)[0]?.endIndex || 2;
-
-  const clearRequests = [];
+  const doc = await gFetch('https://docs.googleapis.com/v1/documents/' + docId, token, 'GET');
+  const endIndex = (doc.body && doc.body.content && doc.body.content.length ? doc.body.content[doc.body.content.length-1].endIndex : 2) || 2;
   if (endIndex > 2) {
-    clearRequests.push({ deleteContentRange: { range: { startIndex: 1, endIndex: endIndex - 1 } } });
+    await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST',
+      { requests: [{ deleteContentRange: { range: { startIndex: 1, endIndex: endIndex - 1 } } }] });
   }
-  if (clearRequests.length) {
-    await gFetch(`https://docs.googleapis.com/v1/documents/${docId}:batchUpdate`, token, 'POST', { requests: clearRequests });
-  }
-
-  // Build new content
   const lines = [];
-  lines.push({ text: '📋 NoteSync — Tag Registry', style: 'TITLE' });
-  lines.push({ text: 'Auto-updated each time a new tag is detected in your notes.', style: 'NORMAL' });
+  lines.push({ text: '\ud83d\udccb NoteSync \u2014 Tag Registry', style: 'TITLE' });
+  lines.push({ text: 'Auto-updated each time a new context tag is detected.', style: 'NORMAL' });
   lines.push({ text: ' ', style: 'NORMAL' });
   lines.push({ text: 'TAG DIRECTORY', style: 'HEADING_1' });
-
-  const sorted = Object.entries(registry).sort((a,b) => a[0].localeCompare(b[0]));
-  for (const [tag, info] of sorted) {
-    lines.push({ text: `[${tag}]  ${info.full_name}`, style: 'HEADING_2' });
-    lines.push({ text: `First used: ${info.first_used_label || info.first_used}`, style: 'NORMAL' });
-    lines.push({ text: `Last used:  ${info.last_used_label || info.last_used}`, style: 'NORMAL' });
-  }
-
+  Object.entries(registry).sort((a,b) => a[0].localeCompare(b[0])).forEach(([tag, info]) => {
+    lines.push({ text: '[' + tag + ']  ' + info.full_name, style: 'HEADING_2' });
+    lines.push({ text: 'First used: ' + (info.first_used_label || info.first_used), style: 'NORMAL' });
+    lines.push({ text: 'Last used:  ' + (info.last_used_label  || info.last_used),  style: 'NORMAL' });
+  });
   const requests = buildDocRequests(lines);
   if (requests.length) {
-    await gFetch(`https://docs.googleapis.com/v1/documents/${docId}:batchUpdate`, token, 'POST', { requests });
+    await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST', { requests });
   }
 }
 
 function showConflictWarning(conflicts, onProceed, onReview) {
-  if (!conflicts || conflicts.length === 0) { onProceed(); return; }
-
-  const msg = conflicts.map(c =>
-    `⚠️ [${c.new_tag}] looks similar to existing tag(s): ${c.similar.map(s=>'['+s+']').join(', ')}`
-  ).join('
-');
-
-  // Show in-app conflict modal
+  if (!conflicts || !conflicts.length) { onProceed(); return; }
+  const msg = conflicts.map(c => '\u26a0\ufe0f [' + c.new_tag + '] looks similar to: ' + c.similar.map(s=>'['+s+']').join(', ')).join('\n');
   const backdrop = document.createElement('div');
   backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:300;display:flex;align-items:flex-end;';
-  backdrop.innerHTML = `
-    <div style="background:#12121a;border:1px solid #f7a94f;border-radius:14px 14px 0 0;padding:24px;width:100%;font-family:var(--sans);">
-      <div style="font-size:16px;font-weight:600;color:#f7a94f;margin-bottom:12px;">⚠️ Tag Conflict Detected</div>
-      <div style="font-size:13px;color:#e8e8f0;white-space:pre-line;margin-bottom:20px;">${msg}</div>
-      <div style="display:flex;gap:10px;">
-        <button id="conflict-proceed" style="flex:1;padding:12px;background:linear-gradient(135deg,#4f8ef7,#7c6af7);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Proceed Anyway</button>
-        <button id="conflict-review" style="flex:1;padding:12px;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;color:#e8e8f0;font-size:14px;cursor:pointer;">Cancel & Review</button>
-      </div>
-    </div>`;
+  backdrop.innerHTML =
+    '<div style="background:#12121a;border:1px solid #f7a94f;border-radius:14px 14px 0 0;padding:24px;width:100%;font-family:var(--sans);">' +
+    '<div style="font-size:16px;font-weight:600;color:#f7a94f;margin-bottom:12px;">\u26a0\ufe0f Tag Conflict Detected</div>' +
+    '<div style="font-size:13px;color:#e8e8f0;white-space:pre-line;margin-bottom:20px;">' + msg + '</div>' +
+    '<div style="display:flex;gap:10px;">' +
+    '<button id="conflict-proceed" style="flex:1;padding:12px;background:linear-gradient(135deg,#4f8ef7,#7c6af7);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Proceed Anyway</button>' +
+    '<button id="conflict-review"  style="flex:1;padding:12px;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;color:#e8e8f0;font-size:14px;cursor:pointer;">Cancel &amp; Review</button>' +
+    '</div></div>';
   document.body.appendChild(backdrop);
   document.getElementById('conflict-proceed').onclick = () => { backdrop.remove(); onProceed(); };
-  document.getElementById('conflict-review').onclick  = () => { backdrop.remove(); onReview(); };
+  document.getElementById('conflict-review').onclick  = () => { backdrop.remove(); onReview();  };
 }
 
 // ── GOOGLE API HELPER ─────────────────────────────────────────────────────────
 
 async function gFetch(url, token, method, body) {
-  const opts = {
-    method,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-  };
+  const opts = { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' } };
   if (body && method !== 'GET') opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `API error ${res.status}`);
+    throw new Error((err.error && err.error.message) ? err.error.message : ('API error ' + res.status));
   }
   return res.json().catch(() => ({}));
 }
 
-// ── RESULTS ───────────────────────────────────────────────────────────────────
-
-function showResults(links) {
-  const container = document.getElementById('result-links');
-  container.innerHTML = links.map(l => `
-    <a class="result-link" href="${l.url}" target="_blank" rel="noopener">
-      <span class="link-icon">${l.icon}</span>
-      <div>
-        <div>${l.label}</div>
-        <div class="link-meta">${l.sub}</div>
-      </div>
-      <span style="margin-left:auto;color:var(--muted)">→</span>
-    </a>
-  `).join('');
-  document.getElementById('result-card').classList.add('visible');
-  document.getElementById('process-btn').disabled = false;
-}
-
-document.getElementById('reset-btn').addEventListener('click', () => {
-  imageFile = null;
-  imageBase64 = null;
-  const img = document.getElementById('preview-img');
-  img.src = ''; img.style.display = 'none';
-  document.getElementById('capture-placeholder').style.display = 'flex';
-  document.getElementById('capture-zone').classList.remove('has-image');
-  document.getElementById('process-btn').disabled = true;
-  document.getElementById('status-card').classList.remove('visible');
-  document.getElementById('result-card').classList.remove('visible');
-  document.getElementById('camera-input').value = '';
-  document.getElementById('gallery-input').value = '';
-});
-
-// ── TOAST ─────────────────────────────────────────────────────────────────────
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-} // end initApp
 </script>
 </body>
 </html>
