@@ -578,16 +578,20 @@
           <div class="step-dot" id="dot-gemini">1</div>
           <span>Sending to Gemini for transcription…</span>
         </div>
+        <div class="status-step" id="step-review">
+          <div class="step-dot" id="dot-review">2</div>
+          <span>Reviewing transcription for errors…</span>
+        </div>
         <div class="status-step" id="step-parse">
-          <div class="step-dot" id="dot-parse">2</div>
+          <div class="step-dot" id="dot-parse">3</div>
           <span>Structuring your notes…</span>
         </div>
         <div class="status-step" id="step-docs">
-          <div class="step-dot" id="dot-docs">3</div>
+          <div class="step-dot" id="dot-docs">4</div>
           <span id="step-docs-label">Creating Google Doc…</span>
         </div>
         <div class="status-step" id="step-keep">
-          <div class="step-dot" id="dot-keep">4</div>
+          <div class="step-dot" id="dot-keep">5</div>
           <span>Saving Keep summary…</span>
         </div>
       </div>
@@ -834,7 +838,7 @@ function setStep(id, state, symbol) {
 }
 
 function resetSteps() {
-  ['gemini','parse','docs','keep'].forEach((id, i) => setStep(id, '', String(i + 1)));
+  ['gemini','review','parse','docs','keep'].forEach((id, i) => setStep(id, '', String(i + 1)));
 }
 
 function showResults(links) {
@@ -883,14 +887,18 @@ async function processNotes() {
     const structured = await transcribeWithGemini(imageBase64, imageFile.type, cfg.geminiKey);
     setStep('gemini', 'done');
 
+    setStep('review', 'active');
+    const reviewed = await reviewTranscription(structured, cfg.geminiKey);
+    setStep('review', 'done');
+
     setStep('parse', 'active');
     await sleep(400);
     setStep('parse', 'done');
 
     // Tag Registry
-    if (structured.context_tags && structured.context_tags.length) {
+    if (reviewed.context_tags && reviewed.context_tags.length) {
       try {
-        const tagResult = await updateTagRegistry(structured.context_tags, googleToken, cfg.folder, structured.day_label);
+        const tagResult = await updateTagRegistry(reviewed.context_tags, googleToken, cfg.folder, reviewed.day_label);
         if (tagResult && tagResult.conflicts && tagResult.conflicts.length) {
           await new Promise((resolve, reject) => {
             showConflictWarning(tagResult.conflicts, resolve, () => reject(new Error('Cancelled \u2014 review your tags and reprocess.')));
@@ -906,7 +914,7 @@ async function processNotes() {
 
     if (outputMode !== 'keep') {
       setStep('docs', 'active');
-      const docResult = await createGoogleDoc(structured, googleToken, cfg.folder);
+      const docResult = await createGoogleDoc(reviewed, googleToken, cfg.folder);
       const docUrl = docResult.url;
       docIdForCorrections = docResult.docId;
       setStep('docs', 'done');
@@ -915,7 +923,7 @@ async function processNotes() {
 
     if (outputMode !== 'docs') {
       setStep('keep', 'active');
-      await sendToKeep(structured, googleToken);
+      await sendToKeep(reviewed, googleToken);
       setStep('keep', 'done');
       links.push({ icon: '\ud83d\udccc', label: 'Open Google Keep', sub: 'Action items summary', url: 'https://keep.google.com' });
     }
@@ -924,11 +932,11 @@ async function processNotes() {
 
     // Post-processing: abbreviation glossary + corrections panels
     await sleep(500);
-    if (structured.unrecognized_abbrevs && structured.unrecognized_abbrevs.length) {
-      await showAbbrevPanel(structured.unrecognized_abbrevs, googleToken, cfg.folder);
+    if (reviewed.unrecognized_abbrevs && reviewed.unrecognized_abbrevs.length) {
+      await showAbbrevPanel(reviewed.unrecognized_abbrevs, googleToken, cfg.folder);
     }
     if (docIdForCorrections) {
-      const allText = collectAllText(structured.note_blocks || []);
+      const allText = collectAllText(reviewed.note_blocks || []);
       const uncertainCount = (allText.match(/\[\?\]/g) || []).length;
       if (uncertainCount > 0) {
         await showCorrectionsPanel(docIdForCorrections, googleToken);
@@ -1074,6 +1082,76 @@ Prioritize: high priority items, deadlines, statements with names, decisions, wa
 
   try { return JSON.parse(raw); }
   catch { return { day_label: new Date().toDateString(), meeting_context: null, key_takeaways: [], note_blocks: [], context_tags: [] }; }
+}
+
+// ── SECOND PASS REVIEW ────────────────────────────────────────────────────────
+
+async function reviewTranscription(data, apiKey) {
+  const reviewPrompt = `You are a quality reviewer for handwritten note transcriptions. You will receive a JSON object produced by a first-pass transcription and must correct specific types of errors. Return ONLY the corrected JSON with no markdown, no explanation.
+
+ERRORS TO FIX:
+
+1. TYPE MISCLASSIFICATION — Check every note_block type:
+   - A circled number ① ② ③ = high_priority, NEVER completed. If you see type=completed but priority_rank has a number, fix to high_priority.
+   - A checked checkbox ☑ = completed. An empty checkbox □ = rollover.
+   - WO or WOs in text = Work Order (a document). type should be rollover or info, NEVER waiting.
+   - PND/NAME = waiting (Frank is blocked). "Person to do task" = low or arrow (delegated, not blocking Frank).
+
+2. CAPITALIZATION — Fix context tags:
+   - [Air FRANCE] → [Air France]
+   - [AIR FRANCE] → [Air France]
+   - [LHT SAFARI VIP] → [LHT Safari VIP]
+   - Apply Title Case to all words in tags except: a, an, the, and, or, for, of, to, in
+
+3. STATEMENT TEXT — If type=statement and text starts with person's name again, remove it.
+   Also remove bare opener words at the very start of text: "stated that", "said that", "shared that".
+   BUT preserve meaningful openers: "Requested that I assist..." should keep "Requested".
+
+4. LINE WRAP ARTIFACTS — If a block has a single child of type low or info with no symbol, tag, deadline, or person, and the child text starts with a lowercase letter or a word like "with/and/to/+", merge the child text onto the parent text and remove the child.
+
+5. DUPLICATE DATA — Remove any PND/NAME text from the text field if waiting_on already captures it. Remove duplicate due_date values. Remove duplicate tag references from text if tag field already has it.
+
+6. MISSING CONTEXT — If a statement block has text starting with "That I..." or "3 more..." without a subject, check if "Requested" or "Asked" should prefix it based on context.
+
+7. WORK ORDER TEXT — If type=rollover and text contains "WO/" followed by a name, rewrite as "Work Order — [task] for [name]" e.g. "WO/Joseph To Have BOM entered" becomes "Work Order — Have BOM entered for Joseph".
+
+Return the complete corrected JSON object. Preserve all fields. Only fix the error types listed above.
+
+JSON TO REVIEW:
+${JSON.stringify(data)}`;
+
+  try {
+    const res = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: reviewPrompt }] }]
+        })
+      }
+    );
+
+    if (!res.ok) {
+      console.warn('Review pass failed, using original transcription');
+      return data;
+    }
+
+    const result = await res.json();
+    let raw = (result.candidates && result.candidates[0] &&
+               result.candidates[0].content && result.candidates[0].content.parts &&
+               result.candidates[0].content.parts[0] &&
+               result.candidates[0].content.parts[0].text) || '';
+    raw = raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'').trim();
+
+    const reviewed = JSON.parse(raw);
+    console.log('Review pass complete — corrections applied');
+    return reviewed;
+
+  } catch(e) {
+    console.warn('Review pass error, using original:', e.message);
+    return data; // Fall back to original if review fails
+  }
 }
 
 // ── GOOGLE DOCS ───────────────────────────────────────────────────────────────
