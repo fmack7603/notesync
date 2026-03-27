@@ -1093,6 +1093,45 @@ async function createGoogleDoc(data, token, folderName) {
   return { url: docUrl, docId };
 }
 
+// ── CONTINUATION MERGE ───────────────────────────────────────────────────────
+// Gemini splits wrapped lines into parent + [NOTE] child.
+// This merges child text back into parent when child is clearly a continuation.
+
+function isContinuation(child) {
+  if (!child) return false;
+  if (child.type !== 'low' && child.type !== 'info' && child.type !== 'arrow') return false;
+  if (child.children && child.children.length > 0) return false;
+  if (child.waiting_on || child.due_date || child.tag || child.person) return false;
+  const t = (child.text || '').trim();
+  if (!t) return false;
+  // Continuation signals: starts lowercase, starts with conjunction/preposition,
+  // or starts with a name that's part of a list (with/and)
+  const continuationStarters = /^(with|and|or|to|the|a |an |in |of |for |that |as |at |on |by |from |into |about |\+)/i;
+  const startsLower = t[0] === t[0].toLowerCase() && t[0] !== t[0].toUpperCase();
+  return startsLower || continuationStarters.test(t);
+}
+
+function mergeBlocks(blocks) {
+  return blocks.map(function(block) {
+    if (!block.children || block.children.length === 0) return block;
+
+    const merged = Object.assign({}, block);
+    const remainingChildren = [];
+
+    block.children.forEach(function(child) {
+      if (isContinuation(child)) {
+        // Merge child text onto parent text
+        merged.text = (merged.text || '').trim() + ' ' + (child.text || '').trim();
+      } else {
+        remainingChildren.push(child);
+      }
+    });
+
+    merged.children = mergeBlocks(remainingChildren);
+    return merged;
+  });
+}
+
 function buildDocContent(data) {
   const lines = [];
   const d = data;
@@ -1112,7 +1151,8 @@ function buildDocContent(data) {
   // ── Full Notes ──
   if (d.note_blocks && d.note_blocks.length) {
     lines.push({ text: '\ud83d\udcc4 FULL NOTES', style: 'HEADING_1' });
-    renderBlocks(d.note_blocks, lines, 0);
+    const mergedBlocks = mergeBlocks(d.note_blocks);
+    renderBlocks(mergedBlocks, lines, 0);
   }
 
   return lines;
@@ -1166,11 +1206,12 @@ function renderBlocks(blocks, lines, depth) {
       .replace(/\s+PND\/\w+/gi, '')
       .trim();
 
-    // Remove redundant person name at start of statement text
+    // Remove redundant person name at start of statement text only
     if (block.type === 'statement' && block.person) {
       const personPattern = new RegExp('^' + block.person.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s\\-–—:]+', 'i');
       text = text.replace(personPattern, '').trim();
-      text = text.replace(/^(stated|requested|said|shared|noted|reported)\s+/i, '').trim();
+      // Only strip bare "stated/said/shared" with no meaningful content after
+      text = text.replace(/^(stated|said|shared)\s+(that\s+)?/i, '').trim();
     }
 
     // Normalize tag capitalization to Title Case
