@@ -1112,9 +1112,11 @@ ERRORS TO FIX:
    - If text starts mid-sentence without a subject (e.g. "schedule. FAI Planned..."), add the opener word that makes sense given context (e.g. "Shared schedule. FAI Planned...")
    - If text starts with "That I..." check if "Requested that I" makes more sense
 
-5. COMPLETED + DECISION PAIRING — If you see a completed block immediately followed by a decision block about the same item, make the decision a child of the completed block. Remove the person's name from the end of the completed text if the decision child already captures it.
+5. COMPLETED + DECISION PAIRING — If you see a completed block about an item, and a decision block immediately follows about the same item, make the decision a child of the completed block. Remove the decision maker's name from the end of the completed text if the decision child already captures it. This pairing MUST be applied — do not leave decision blocks as siblings of completed blocks.
 
-6. LINE WRAP MERGING — If a block has a child of type low or info with no symbol, tag, deadline, or person, and the child text starts lowercase or with: with/and/to/+/of/for/in, merge child text onto parent and remove child.
+6. LINE WRAP MERGING — If a block has a child of type low or info with no symbol, tag, deadline, or person, and the child text starts lowercase or with: with/and/to/+/of/for/in, merge child text onto parent and remove child. EXCEPTION: Do NOT merge if the child text describes a completely different subject than the parent. For example if parent is about Emirates orders and child is about a meeting with Mark, do NOT merge — keep them separate.
+
+7. WAITING ON TEXT — If a rollover or info block contains "Need Update" or "Need update" and has a waiting_on field or the original context mentions a person, ensure the person's name appears in the text as "Need Update from [Name]". Never drop the person name from this phrase.
 
 7. DUPLICATE DATA — Remove PND/NAME from text field if waiting_on already has it. Remove duplicate due_dates. Remove duplicate tag text from text field if tag field has it.
 
@@ -1122,7 +1124,7 @@ ERRORS TO FIX:
 
 9. FOLLOW UP vs INFO — If a block is type=arrow but describes a task someone else was assigned (not Frank following up), change to type=low.
 
-10. PROPER NOUNS — Common misreads in this person's notes: "Raul" may be misread as "Paul". If context mentions switch assemblies and testing, the person is likely "Raul" not "Paul". Apply careful reading.
+10. PROPER NOUNS — Common misreads in this person's notes: "Paul" and "Raul" look similar in handwriting. Apply this rule carefully: "Paul wants X shipped to Seattle" = Paul (shipping recipient). "Switch assy for Raul...to Test" = Raul (testing context). Never swap these — use context to determine which name is correct.
 
 11. STATEMENT OPENER RESTORATION — If a statement text starts with "I assist" or "I was asked" or similar first-person without a verb, prepend "Requested that" to make it read as a proper statement. If text starts with a number like "3 more switch assy..." prepend "Requested" to give it context.
 
@@ -1188,17 +1190,20 @@ async function createGoogleDoc(data, token, folderName) {
 // Gemini splits wrapped lines into parent + [NOTE] child.
 // This merges child text back into parent when child is clearly a continuation.
 
-function isContinuation(child) {
+function isContinuation(child, parentBlock) {
   if (!child) return false;
   if (child.type !== 'low' && child.type !== 'info' && child.type !== 'arrow') return false;
   if (child.children && child.children.length > 0) return false;
   if (child.waiting_on || child.due_date || child.tag || child.person) return false;
   const t = (child.text || '').trim();
   if (!t) return false;
-  // Continuation signals: starts lowercase, starts with conjunction/preposition,
-  // or starts with a name that's part of a list (with/and)
-  const continuationStarters = /^(with|and|or|to|the|a |an |in |of |for |that |as |at |on |by |from |into |about |\+)/i;
-  const startsLower = t[0] === t[0].toLowerCase() && t[0] !== t[0].toUpperCase();
+  // Never merge if child introduces a new proper noun subject (name, project, meeting)
+  if (/^[A-Z][a-z]+ (to have|has |to provide|to complete|to discuss)/i.test(t)) return false;
+  if (/^(mark|joseph|peggy|patrick|john|dave|nicole|ali|francisco|stefania|michelle)/i.test(t)) return false;
+  if (/meeting|today|discuss/i.test(t) && parentBlock && !/meeting|today|discuss/i.test(parentBlock.text || '')) return false;
+  // Continuation signals: starts lowercase, starts with conjunction/preposition
+  const continuationStarters = /^(with|and|or|to |the |a |an |in |of |for |that |as |at |on |by |from |into |about |\+)/i;
+  const startsLower = t[0] === t[0].toLowerCase() && /[a-z]/.test(t[0]);
   return startsLower || continuationStarters.test(t);
 }
 
@@ -1210,8 +1215,7 @@ function mergeBlocks(blocks) {
     const remainingChildren = [];
 
     block.children.forEach(function(child) {
-      if (isContinuation(child)) {
-        // Merge child text onto parent text
+      if (isContinuation(child, block)) {
         merged.text = (merged.text || '').trim() + ' ' + (child.text || '').trim();
       } else {
         remainingChildren.push(child);
