@@ -1079,6 +1079,7 @@ function buildDocContent(data) {
   if (d.key_takeaways && d.key_takeaways.length) {
     lines.push({ text: '\ud83d\udccb KEY TAKEAWAYS', style: 'HEADING_1' });
     d.key_takeaways.forEach(t => lines.push({ text: '\u2022  ' + t, style: 'NORMAL' }));
+    lines.push({ text: '', style: 'NORMAL' });
   }
 
   // ── Full Notes ──
@@ -1123,17 +1124,38 @@ function labelForBlock(block, depth) {
 
 function renderBlocks(blocks, lines, depth) {
   const indent = '    '.repeat(depth);
-  blocks.forEach(function(block) {
+  blocks.forEach(function(block, idx) {
+    // Blank line before each top-level block (except the first)
+    if (depth === 0 && idx > 0) {
+      lines.push({ text: '', style: 'NORMAL' });
+    }
+
     const label = labelForBlock(block, depth);
-    const tag   = block.tag        ? '  [' + block.tag + ']'           : '';
-    const due   = block.due_date   ? '  DUE: ' + block.due_date        : '';
-    const who   = block.waiting_on && block.type !== 'waiting'
-                    ? '  PND/' + block.waiting_on : '';
-    const text  = block.text || '';
+
+    // Clean text — strip any leaked symbols (☑, □, °, →, •)
+    let text = (block.text || '').replace(/[☑☒□°→•]/g, '').trim();
+
+    // Tag — only show if not already in text
+    const tagStr = block.tag && !text.includes(block.tag)
+      ? '  [' + block.tag + ']' : '';
+
+    // Due date
+    const dueStr = block.due_date ? '  DUE: ' + block.due_date : '';
+
+    // Waiting on — only show once, on waiting-type blocks or if not in text
+    const whoStr = block.waiting_on && block.type === 'waiting' &&
+                   !text.includes('PND/' + block.waiting_on)
+      ? '  PND/' + block.waiting_on : '';
+
+    // Person — for statements, remove redundant name from text if label has it
+    if ((block.type === 'statement') && block.person &&
+        text.toLowerCase().startsWith(block.person.toLowerCase())) {
+      text = text.slice(block.person.length).replace(/^[\s\-–—:]+/, '').trim();
+    }
 
     let line = indent;
     if (label) line += label + '  ';
-    line += text + tag + due + who;
+    line += text + tagStr + dueStr + whoStr;
 
     lines.push({ text: line.trim(), style: 'NORMAL' });
 
