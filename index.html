@@ -666,6 +666,7 @@ let imageFile   = null;
 let imageBase64 = null;
 let outputMode  = 'docs';
 let googleToken = null;
+let docIdForCorrections = null;
 
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 
@@ -905,7 +906,9 @@ async function processNotes() {
 
     if (outputMode !== 'keep') {
       setStep('docs', 'active');
-      const docUrl = await createGoogleDoc(structured, googleToken, cfg.folder);
+      const docResult = await createGoogleDoc(structured, googleToken, cfg.folder);
+      const docUrl = docResult.url;
+      docIdForCorrections = docResult.docId;
       setStep('docs', 'done');
       links.push({ icon: '\ud83d\udcc4', label: 'Open Google Doc', sub: 'Full structured notes', url: docUrl });
     }
@@ -918,6 +921,19 @@ async function processNotes() {
     }
 
     showResults(links);
+
+    // Post-processing: abbreviation glossary + corrections panels
+    await sleep(500);
+    if (structured.unrecognized_abbrevs && structured.unrecognized_abbrevs.length) {
+      await showAbbrevPanel(structured.unrecognized_abbrevs, googleToken, cfg.folder);
+    }
+    if (docIdForCorrections) {
+      const allText = collectAllText(structured.note_blocks || []);
+      const uncertainCount = (allText.match(/\[\?\]/g) || []).length;
+      if (uncertainCount > 0) {
+        await showCorrectionsPanel(docIdForCorrections, googleToken);
+      }
+    }
 
   } catch(err) {
     console.error(err);
@@ -985,18 +1001,24 @@ SYMBOLS — apply exactly:
 - Empty checkbox (□) = rollover
 - Checked/X checkbox (☑ or ☒) = completed
 - Small open circle (°) before text = statement, set person to the name mentioned
-- WO/ NAME = waiting, set waiting_on to the name after WO/
+- PND/ NAME = waiting, set waiting_on to the name after PND/
 - Arrow (→) = info or action sub-item, usually a child
-- [D] prefix = decision
+- [D] prefix = decision, set person to name of decision maker if mentioned
 - Bullet (•) or dash = low
 - Text in [SQUARE BRACKETS] at start of line = tag_header context marker
 - Plain text = info
+
+WORK ORDERS: WO = Work Order. WOs = Work Orders. NEVER set waiting_on for WO or WOs. Treat as plain task text.
+
+UNCERTAIN WORDS: If you cannot clearly read a word, write [?] in its place. Do not guess.
+
+ALL CAPS DETECTION: Add "unrecognized_abbrevs" array. List any ALL CAPS sequences not in: ATG,BOM,BTX,DWC,FAI,PCB,PT3,QTY,WO,WOs,DNATA,A350,A380,B777,ASSY,CONFIG,PND,LHT,VIP,AFC,PIP. Format: {"abbrev":"XYZ","context":"line it appeared in"}.
 
 CONTEXT TAGS: Text in [SQUARE BRACKETS] like [Air France] or [LHT Safari VIP] = context tag. Extract to context_tags array AND set tag field on the note_block.
 
 DEADLINES: DUE: followed by date = set due_date on the block.
 
-KEY TAKEAWAYS: Write exactly 5 brief bullets summarizing the most important things from the entire page. Each bullet must be one concise line. Prioritize: high priority items, deadlines, statements, decisions, waiting items.`;
+KEY TAKEAWAYS: Write exactly 5 brief bullets summarizing the most important things from the entire page. Each bullet must be one concise line. Use full meanings: BOM=Bill of Material, FAI=First Article Inspection, WO=Work Order, PT3=Powertech 3. Prioritize: high priority items, deadlines, statements, decisions, waiting items.`;
 
   const res = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey,
@@ -1041,7 +1063,7 @@ async function createGoogleDoc(data, token, folderName) {
     await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST', { requests });
   }
   await moveToFolder(docId, token, folderName, today);
-  return docUrl;
+  return { url: docUrl, docId };
 }
 
 function buildDocContent(data) {
@@ -1068,37 +1090,52 @@ function buildDocContent(data) {
   return lines;
 }
 
-function symbolChar(block) {
-  if (block.symbol_display) return block.symbol_display;
-  const map = {
-    high_priority: '\u2605',
-    rollover:      '\u25a1',
-    completed:     '\u2611',
-    statement:     '\u00b0',
-    waiting:       'WO/',
-    decision:      '[D]',
-    low:           '\u2022',
+function labelForBlock(block, depth) {
+  // Children use softer labels
+  if (depth > 0) {
+    const childMap = {
+      rollover:   '[ROLLOVER]',
+      completed:  '[COMPLETED]',
+      statement:  '[STATEMENT' + (block.person ? ': ' + block.person : '') + ']',
+      waiting:    '[WAITING' + (block.waiting_on ? ': ' + block.waiting_on : '') + ']',
+      decision:   '[DECISION' + (block.person ? ': ' + block.person : '') + ']',
+      low:        '[NOTE]',
+      info:       '[NOTE]',
+      arrow:      '[FOLLOW UP]',
+    };
+    return childMap[block.type] || '';
+  }
+  // Top-level labels
+  const labelMap = {
+    high_priority: '[HIGH' + (block.priority_rank ? ' ' + block.priority_rank : '') + ']',
+    rollover:      '[ROLLOVER]',
+    completed:     '[COMPLETED]',
+    statement:     '[STATEMENT' + (block.person ? ': ' + block.person : '') + ']',
+    waiting:       '[WAITING' + (block.waiting_on ? ': ' + block.waiting_on : '') + ']',
+    decision:      '[DECISION' + (block.person ? ': ' + block.person : '') + ']',
+    low:           '[NOTE]',
     info:          '',
     tag_header:    '',
-    arrow:         '\u2192',
+    arrow:         '[FOLLOW UP]',
   };
-  return map[block.type] || '';
+  return labelMap[block.type] || '';
 }
 
 function renderBlocks(blocks, lines, depth) {
   const indent = '    '.repeat(depth);
-  blocks.forEach(block => {
-    const sym  = symbolChar(block);
-    const tag  = block.tag  ? ' [' + block.tag + ']' : '';
-    const due  = block.due_date ? ' \u2014 DUE: ' + block.due_date : '';
-    const who  = block.waiting_on ? ' \u2014 WO/ ' + block.waiting_on : '';
-    const text = block.text || '';
+  blocks.forEach(function(block) {
+    const label = labelForBlock(block, depth);
+    const tag   = block.tag        ? '  [' + block.tag + ']'           : '';
+    const due   = block.due_date   ? '  DUE: ' + block.due_date        : '';
+    const who   = block.waiting_on && block.type !== 'waiting'
+                    ? '  PND/' + block.waiting_on : '';
+    const text  = block.text || '';
 
     let line = indent;
-    if (sym) line += sym + '  ';
+    if (label) line += label + '  ';
     line += text + tag + due + who;
 
-    lines.push({ text: line, style: 'NORMAL' });
+    lines.push({ text: line.trim(), style: 'NORMAL' });
 
     if (block.children && block.children.length) {
       renderBlocks(block.children, lines, depth + 1);
@@ -1268,6 +1305,138 @@ function showConflictWarning(conflicts, onProceed, onReview) {
   document.body.appendChild(backdrop);
   document.getElementById('conflict-proceed').onclick = () => { backdrop.remove(); onProceed(); };
   document.getElementById('conflict-review').onclick  = () => { backdrop.remove(); onReview();  };
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+function collectAllText(blocks) {
+  let text = '';
+  (blocks || []).forEach(function(b) {
+    text += (b.text || '') + ' ';
+    if (b.children && b.children.length) text += collectAllText(b.children);
+  });
+  return text;
+}
+
+// ── ABBREVIATION PANEL ────────────────────────────────────────────────────────
+
+async function showAbbrevPanel(abbrevs, token, folderName) {
+  return new Promise(function(resolve) {
+    let current = 0;
+    const results = [];
+
+    function showNext() {
+      if (current >= abbrevs.length) {
+        saveAbbrevs(results, token, folderName).then(resolve).catch(resolve);
+        return;
+      }
+      const item = abbrevs[current];
+      const bd = document.createElement('div');
+      bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:400;display:flex;align-items:flex-end;';
+      bd.innerHTML =
+        '<div style="background:#12121a;border:1px solid #4f8ef7;border-radius:14px 14px 0 0;padding:24px;width:100%;font-family:var(--sans);">' +
+        '<div style="font-size:12px;color:#6b6b88;font-family:var(--mono);margin-bottom:8px;">NEW ABBREVIATION ' + (current+1) + ' OF ' + abbrevs.length + '</div>' +
+        '<div style="font-size:24px;font-weight:700;color:#4f8ef7;margin-bottom:6px;">' + item.abbrev + '</div>' +
+        '<div style="font-size:12px;color:#6b6b88;margin-bottom:16px;">Found in: "' + (item.context||'').slice(0,55) + '"</div>' +
+        '<input id="abv-in" type="text" placeholder="Type full meaning (or leave blank to skip)..." ' +
+        'style="width:100%;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;padding:12px;color:#e8e8f0;font-size:15px;outline:none;margin-bottom:12px;" />' +
+        '<div style="display:flex;gap:8px;">' +
+        '<button id="abv-add" style="flex:2;padding:12px;background:linear-gradient(135deg,#4f8ef7,#7c6af7);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Add to Glossary</button>' +
+        '<button id="abv-skip" style="flex:1;padding:12px;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;color:#6b6b88;font-size:14px;cursor:pointer;">Skip</button>' +
+        '</div></div>';
+      document.body.appendChild(bd);
+      document.getElementById('abv-in').focus();
+      document.getElementById('abv-add').onclick = function() {
+        const meaning = document.getElementById('abv-in').value.trim();
+        if (meaning) results.push({ abbrev: item.abbrev, meaning: meaning, context: item.context });
+        bd.remove(); current++; showNext();
+      };
+      document.getElementById('abv-skip').onclick = function() {
+        bd.remove(); current++; showNext();
+      };
+    }
+    showNext();
+  });
+}
+
+async function saveAbbrevs(results, token, folderName) {
+  if (!results.length) return;
+  const cfg = loadCfg();
+  let gDocId = cfg.glossaryDocId || null;
+  const today = new Date().toISOString().split('T')[0];
+
+  if (!gDocId) {
+    const cr = await gFetch('https://docs.googleapis.com/v1/documents', token, 'POST', { title: 'NoteSync Abbreviation Glossary (App)' });
+    gDocId = cr.documentId;
+    const c = loadCfg(); c.glossaryDocId = gDocId; saveCfg(c);
+    const rootId = await getOrCreateFolder(token, folderName, null);
+    const fr = await gFetch('https://www.googleapis.com/drive/v3/files/' + gDocId + '?fields=parents', token, 'GET');
+    const prev = (fr.parents || []).join(',');
+    await gFetch('https://www.googleapis.com/drive/v3/files/' + gDocId + '?addParents=' + rootId + '&removeParents=' + prev, token, 'PATCH', {});
+  }
+
+  const doc = await gFetch('https://docs.googleapis.com/v1/documents/' + gDocId, token, 'GET');
+  const endIdx = ((doc.body && doc.body.content && doc.body.content.length)
+    ? doc.body.content[doc.body.content.length-1].endIndex : 2) - 1;
+  const insertText = results.map(function(r) {
+    return r.abbrev + ' - ' + r.meaning + ' (added ' + today + ')';
+  }).join('\n') + '\n';
+  await gFetch('https://docs.googleapis.com/v1/documents/' + gDocId + ':batchUpdate', token, 'POST', {
+    requests: [{ insertText: { location: { index: endIdx }, text: insertText } }]
+  });
+  showToast(results.length + ' term(s) added to Glossary');
+}
+
+// ── CORRECTIONS PANEL ─────────────────────────────────────────────────────────
+
+async function showCorrectionsPanel(docId, token) {
+  return new Promise(function(resolve) {
+    let correctionsDone = 0;
+
+    const bd = document.createElement('div');
+    bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:400;display:flex;align-items:flex-end;';
+    bd.innerHTML =
+      '<div style="background:#12121a;border:1px solid #f7a94f;border-radius:14px 14px 0 0;padding:24px;width:100%;font-family:var(--sans);">' +
+      '<div style="font-size:16px;font-weight:600;color:#f7a94f;margin-bottom:8px;">Gemini could not read some words</div>' +
+      '<div style="font-size:13px;color:#e8e8f0;margin-bottom:16px;">Your Doc contains [?] markers. Type the correct word to replace each one, or close to leave them for manual review.</div>' +
+      '<input id="corr-in" type="text" placeholder="Replacement for next [?]..." ' +
+      'style="width:100%;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;padding:12px;color:#e8e8f0;font-size:15px;outline:none;margin-bottom:12px;" />' +
+      '<div style="display:flex;gap:8px;">' +
+      '<button id="corr-save" style="flex:2;padding:12px;background:linear-gradient(135deg,#f7a94f,#f75f5f);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Replace Next [?]</button>' +
+      '<button id="corr-done" style="flex:1;padding:12px;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;color:#6b6b88;font-size:14px;cursor:pointer;">Done</button>' +
+      '</div>' +
+      '<div id="corr-status" style="font-size:12px;color:#6b6b88;margin-top:10px;text-align:center;"></div>' +
+      '</div>';
+    document.body.appendChild(bd);
+    document.getElementById('corr-in').focus();
+
+    document.getElementById('corr-save').onclick = async function() {
+      const word = document.getElementById('corr-in').value.trim();
+      if (!word) return;
+      try {
+        await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST', {
+          requests: [{
+            replaceAllText: {
+              containsText: { text: '[?]', matchCase: true },
+              replaceText: word
+            }
+          }]
+        });
+        correctionsDone++;
+        document.getElementById('corr-status').textContent = correctionsDone + ' replacement(s) applied';
+        document.getElementById('corr-in').value = '';
+        document.getElementById('corr-in').focus();
+      } catch(e) {
+        document.getElementById('corr-status').textContent = 'Error: ' + e.message;
+      }
+    };
+
+    document.getElementById('corr-done').onclick = function() {
+      bd.remove();
+      if (correctionsDone) showToast(correctionsDone + ' correction(s) applied to Doc');
+      resolve();
+    };
+  });
 }
 
 // ── GOOGLE API HELPER ─────────────────────────────────────────────────────────
