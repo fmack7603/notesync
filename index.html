@@ -989,36 +989,58 @@ JSON structure:
   ]
 }
 
-CRITICAL RULES:
+CRITICAL RULES — READ CAREFULLY:
 
-ORDER: Preserve the exact top-to-bottom order items appear on the page. Do not reorder or group.
+ORDER: Preserve exact top-to-bottom page order. Do not reorder or group.
 
-INDENTATION: Any item written indented below another is a CHILD of that parent. Capture it in the children array of its parent, NOT as a separate top-level block. Children can have their own children (grandchildren) if indented further.
+INDENTATION: Any line visually indented under another = CHILD of that parent. Put it in the parent children array. Do NOT add as a top-level block. Max 2 levels deep.
 
-SYMBOLS — apply exactly:
-- Circled number (① ② ③) = high_priority, set priority_rank to the number
-- Star (*) = high_priority
-- Empty checkbox (□) = rollover
-- Checked/X checkbox (☑ or ☒) = completed
-- Small open circle (°) before text = statement, set person to the name mentioned
-- PND/ NAME = waiting, set waiting_on to the name after PND/
-- Arrow (→) = info or action sub-item, usually a child
-- [D] prefix = decision, set person to name of decision maker if mentioned
-- Bullet (•) or dash = low
-- Text in [SQUARE BRACKETS] at start of line = tag_header context marker
+SYMBOLS — The symbol tells you the TYPE. The text field must NEVER contain the symbol character itself:
+- Circled number ①②③ = high_priority, priority_rank = that number. text = everything after the circled number
+- Star * = high_priority. text = everything after the star
+- Empty checkbox □ = rollover. text = everything after the checkbox
+- Checked checkbox ☑ or ☒ = completed. text = everything after the checkbox — do NOT include ☑ or ☒ in text
+- Small circle ° before a name = statement. person = the name immediately after °. text = what they said, NOT including the ° or their name again
+- PND/ followed by name = waiting. waiting_on = name after PND/. text = the task description only
+- Arrow → = arrow type. text = everything after the arrow
+- [D] prefix = decision. text = everything after [D]
+- Bullet • or dash - = low. text = everything after the bullet
 - Plain text = info
 
-WORK ORDERS: WO = Work Order. WOs = Work Orders. NEVER set waiting_on for WO or WOs. Treat as plain task text.
+ABSOLUTE RULE — TEXT FIELD CLEANLINESS:
+The text field must NEVER contain: ☑ ☒ □ ° → • * ① ② ③ [D]
+Strip these completely before writing to text field.
 
-UNCERTAIN WORDS: If you cannot clearly read a word, write [?] in its place. Do not guess.
+WORK ORDERS — CRITICAL:
+WO = Work Order (noun). WOs = Work Orders (plural).
+A line containing "WO" or "WOs" as a noun = rollover or info type task about work orders.
+NEVER set type=waiting or waiting_on for a line containing WO or WOs.
+Example: "WO/Joseph to have BOM entered" = rollover task about a Work Order for Joseph. waiting_on = null.
 
-ALL CAPS DETECTION: Add "unrecognized_abbrevs" array. List any ALL CAPS sequences not in: ATG,BOM,BTX,DWC,FAI,PCB,PT3,QTY,WO,WOs,DNATA,A350,A380,B777,ASSY,CONFIG,PND,LHT,VIP,AFC,PIP. Format: {"abbrev":"XYZ","context":"line it appeared in"}.
+PERSON NAME IN STATEMENTS:
+When type=statement, set person = the name. The text field should contain what they said, NOT start with their name again. If the raw text is "John - Stated Paul wants..." then person="John" and text="Paul wants...".
 
-CONTEXT TAGS: Text in [SQUARE BRACKETS] like [Air France] or [LHT Safari VIP] = context tag. Extract to context_tags array AND set tag field on the note_block.
+CONTEXT TAGS:
+Text in [SQUARE BRACKETS] = context tag. Use the FULL name as written e.g. [Air France] not [AFC].
+Extract to context_tags array AND set tag field on the note_block using the full bracketed text.
+If you see a shorthand like [AFC] check surrounding text — if near "Air France" use [Air France].
 
-DEADLINES: DUE: followed by date = set due_date on the block.
+DEADLINES:
+DUE: followed by date = set due_date. Use one consistent format: YYYY-MMM-DD e.g. 2026-APR-03.
+If two dates appear for the same item pick the most explicit one. Never put two due dates on one block.
 
-KEY TAKEAWAYS: Write exactly 5 brief bullets summarizing the most important things from the entire page. Each bullet must be one concise line. Use full meanings: BOM=Bill of Material, FAI=First Article Inspection, WO=Work Order, PT3=Powertech 3. Prioritize: high priority items, deadlines, statements, decisions, waiting items.`;
+PND/ WAITING:
+PND/NAME means Frank is waiting on NAME. Set type=waiting, waiting_on=NAME.
+Only set waiting_on ONCE per block. Never duplicate it.
+
+ALL CAPS DETECTION:
+Add "unrecognized_abbrevs" array. List any ALL CAPS sequences not in this known list:
+ATG,BOM,BTX,DWC,FAI,PCB,PT3,QTY,WO,WOs,DNATA,A350,A380,B777,ASSY,CONFIG,PND,LHT,VIP,AFC,PIP,FAI,ADD,TO,IN,OF,OR,AND,FOR,THE,NEW,MAKE,NEED,HAVE,THAT,WITH,FROM
+Format: {"abbrev":"XYZ","context":"the line it appeared in"}
+
+KEY TAKEAWAYS:
+Exactly 5 bullets, one line each, high level. Use full meanings: BOM=Bill of Material, FAI=First Article Inspection, WO=Work Order, PT3=Powertech 3 window shade.
+Prioritize: high priority items, deadlines, statements with names, decisions, waiting items.`;
 
   const res = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey,
@@ -1125,33 +1147,38 @@ function labelForBlock(block, depth) {
 function renderBlocks(blocks, lines, depth) {
   const indent = '    '.repeat(depth);
   blocks.forEach(function(block, idx) {
-    // Blank line before each top-level block (except the first)
+    // Blank line before each top-level block except first
     if (depth === 0 && idx > 0) {
       lines.push({ text: '', style: 'NORMAL' });
     }
 
     const label = labelForBlock(block, depth);
 
-    // Clean text — strip any leaked symbols (☑, □, °, →, •)
-    let text = (block.text || '').replace(/[☑☒□°→•]/g, '').trim();
+    // Clean text — strip leaked symbols, normalize whitespace
+    let text = (block.text || '')
+      .replace(/[☑☒□°→•✓✗]/g, '')
+      .replace(/^\s*[\-–—:]+\s*/, '')
+      .trim();
 
-    // Tag — only show if not already in text
-    const tagStr = block.tag && !text.includes(block.tag)
-      ? '  [' + block.tag + ']' : '';
-
-    // Due date
-    const dueStr = block.due_date ? '  DUE: ' + block.due_date : '';
-
-    // Waiting on — only show once, on waiting-type blocks or if not in text
-    const whoStr = block.waiting_on && block.type === 'waiting' &&
-                   !text.includes('PND/' + block.waiting_on)
-      ? '  PND/' + block.waiting_on : '';
-
-    // Person — for statements, remove redundant name from text if label has it
-    if ((block.type === 'statement') && block.person &&
-        text.toLowerCase().startsWith(block.person.toLowerCase())) {
-      text = text.slice(block.person.length).replace(/^[\s\-–—:]+/, '').trim();
+    // Remove redundant person name at start of statement text
+    if (block.type === 'statement' && block.person) {
+      const personPattern = new RegExp('^' + block.person.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s\\-–—:]+', 'i');
+      text = text.replace(personPattern, '').trim();
+      // Also strip "Stated", "Requested", "Said" openers if they come right after
+      text = text.replace(/^(stated|requested|said|shared|noted)\s+/i, '').trim();
     }
+
+    // Tag — show only if not already in text, use full name
+    const tagStr = block.tag && text.indexOf(block.tag) === -1
+      ? '  ' + block.tag : '';
+
+    // Due date — normalize to one instance, consistent format
+    const dueStr = block.due_date
+      ? '  DUE: ' + block.due_date.replace(/^by\s+/i,'').trim() : '';
+
+    // Waiting on — only on waiting-type blocks, only once
+    const whoStr = block.type === 'waiting' && block.waiting_on
+      ? '  PND/' + block.waiting_on : '';
 
     let line = indent;
     if (label) line += label + '  ';
