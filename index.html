@@ -1124,11 +1124,15 @@ ERRORS TO FIX:
 
 9. FOLLOW UP vs INFO — If a block is type=arrow but describes a task someone else was assigned (not Frank following up), change to type=low.
 
-10. PROPER NOUNS — Common misreads in this person's notes: "Paul" and "Raul" look similar in handwriting. Apply this rule carefully: "Paul wants X shipped to Seattle" = Paul (shipping recipient). "Switch assy for Raul...to Test" = Raul (testing context). Never swap these — use context to determine which name is correct.
+10. PROPER NOUNS — Never change any person names (Paul, Raul, Mark, John, Dave, Nicole, Joseph, Peggy, Patrick, Francisco, Michelle, Stefania, Ali). Leave all names exactly as the first pass transcribed them. Do not attempt to correct name spellings.
 
-11. STATEMENT OPENER RESTORATION — If a statement text starts with "I assist" or "I was asked" or similar first-person without a verb, prepend "Requested that" to make it read as a proper statement. If text starts with a number like "3 more switch assy..." prepend "Requested" to give it context.
+11. STATEMENT OPENER RESTORATION — If a statement text starts with "I assist" or first-person mid-sentence without a verb, prepend "Requested that". If text starts with a bare number like "3 more switch assy...", prepend "Requested". Never alter names in the text when doing this.
 
-12. STATEMENT MISSING PERSON — If type=statement and person field is null or empty, look at the text for a name and extract it into the person field. Remove that name from the start of text.
+12. STATEMENT MISSING PERSON — If type=statement and person is null, extract a name from the start of text into person field, remove it from text start.
+
+13. PRESERVE CHILD NAMES — If a child block of type low or info has a person name at the start (e.g. "Peggy to provide..." or "Patrick to complete..."), do NOT strip the name. The name is essential context.
+
+14. DO NOT REMOVE NOTES — Never delete or omit any block from the JSON. The output must contain every block from the input. If unsure how to fix a block, leave it exactly as-is.
 
 Return the complete corrected JSON. Preserve all fields not mentioned above. Only fix the error types listed.
 
