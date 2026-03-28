@@ -1433,17 +1433,55 @@ async function getOrCreateFolder(token, name, parentId) {
 // ── GOOGLE KEEP (via Gmail) ───────────────────────────────────────────────────
 
 async function sendToKeep(data, token) {
-  const subject = '\ud83d\udcd3 ' + (data.day_label || new Date().toDateString()) + (data.meeting_context ? ' \u2014 ' + data.meeting_context : '');
+  // Only send rollover tasks to Keep — checklist format only
+  const rollovers = (data.note_blocks || []).reduce(function(acc, block) {
+    if (block.type === 'rollover') acc.push(block.text || '');
+    (block.children || []).forEach(function(child) {
+      if (child.type === 'rollover') acc.push(child.text || '');
+    });
+    return acc;
+  }, []);
 
-  let body = '';
-  if (data.key_takeaways && data.key_takeaways.length) {
-    body += 'KEY TAKEAWAYS\n' + data.key_takeaways.map(t => '- ' + t).join('\n') + '\n';
-  } else {
-    body = 'No takeaways captured.';
+  if (!rollovers.length) {
+    console.log('No rollover tasks found — skipping Keep note');
+    return;
   }
 
-  const email = 'To: me\r\nSubject: ' + subject + '\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n' + body;
-  const encoded = btoa(unescape(encodeURIComponent(email))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  // Get actual Gmail address for To header (required by Gmail API — 'me' is not valid)
+  let emailAddress = loadCfg().gmailAddress || '';
+  if (!emailAddress) {
+    try {
+      const profile = await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', token, 'GET');
+      emailAddress = profile.emailAddress || '';
+      if (emailAddress) {
+        const c = loadCfg(); c.gmailAddress = emailAddress; saveCfg(c);
+      }
+    } catch(e) {
+      console.warn('Could not fetch Gmail address:', e.message);
+    }
+  }
+
+  if (!emailAddress) throw new Error('Could not determine Gmail address for Keep delivery');
+
+  const subject = '\ud83d\udd04 Rollovers \u2014 ' + (data.day_label || new Date().toDateString())
+    + (data.meeting_context ? ' \u2014 ' + data.meeting_context : '');
+
+  // Format as plain checklist (Keep renders lines starting with [] as checkboxes)
+  const body = rollovers.map(function(t) {
+    return '[] ' + (t || '').replace(/\s+PND\/\w+/gi, '').trim();
+  }).join('\r\n');
+
+  const email = [
+    'To: ' + emailAddress,
+    'Subject: ' + subject,
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+    body
+  ].join('\r\n');
+
+  const encoded = btoa(unescape(encodeURIComponent(email)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
   await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', token, 'POST', { raw: encoded });
 }
 
