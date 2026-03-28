@@ -628,6 +628,10 @@
       <label>Drive Folder Name</label>
       <input type="text" id="cfg-folder" placeholder="Daily Notes" />
     </div>
+    <div class="field">
+      <label>Your Gmail Address (for Keep notes)</label>
+      <input type="email" id="cfg-keep-email" placeholder="yourname@gmail.com" />
+    </div>
 
     <button class="save-btn" id="save-cfg-btn">Save Settings</button>
 
@@ -684,6 +688,7 @@ function initApp() {
   document.getElementById('cfg-gemini-key').value = cfg.geminiKey || '';
   document.getElementById('cfg-client-id').value  = cfg.clientId  || '';
   document.getElementById('cfg-folder').value     = cfg.folder    || 'Daily Notes';
+  document.getElementById('cfg-keep-email').value = cfg.keepEmail || '';
   outputMode = cfg.lastOutput || 'docs';
   setOutputToggle(outputMode);
   if (cfg.googleToken) {
@@ -731,6 +736,7 @@ function initApp() {
     c.geminiKey = document.getElementById('cfg-gemini-key').value.trim();
     c.clientId  = document.getElementById('cfg-client-id').value.trim();
     c.folder    = document.getElementById('cfg-folder').value.trim() || 'Daily Notes';
+    c.keepEmail = document.getElementById('cfg-keep-email').value.trim();
     saveCfg(c);
     showToast('Settings saved \u2713');
     document.getElementById('modal-backdrop').classList.remove('open');
@@ -1447,21 +1453,12 @@ async function sendToKeep(data, token) {
     return;
   }
 
-  // Get actual Gmail address for To header (required by Gmail API — 'me' is not valid)
-  let emailAddress = loadCfg().gmailAddress || '';
+  // Use email address from settings (saved during OAuth or entered manually)
+  const cfg = loadCfg();
+  const emailAddress = cfg.gmailAddress || cfg.keepEmail || '';
   if (!emailAddress) {
-    try {
-      const profile = await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', token, 'GET');
-      emailAddress = profile.emailAddress || '';
-      if (emailAddress) {
-        const c = loadCfg(); c.gmailAddress = emailAddress; saveCfg(c);
-      }
-    } catch(e) {
-      console.warn('Could not fetch Gmail address:', e.message);
-    }
+    throw new Error('Gmail address not set — open Settings and enter your Gmail address in the Keep Email field');
   }
-
-  if (!emailAddress) throw new Error('Could not determine Gmail address for Keep delivery');
 
   const subject = '\ud83d\udd04 Rollovers \u2014 ' + (data.day_label || new Date().toDateString())
     + (data.meeting_context ? ' \u2014 ' + data.meeting_context : '');
