@@ -556,11 +556,11 @@
           <span class="opt-label">Docs Only</span>
         </div>
         <div class="toggle-option" data-value="keep" id="opt-keep">
-          <span class="opt-icon">📌</span>
-          <span class="opt-label">Keep Only</span>
+          <span class="opt-icon">✅</span>
+          <span class="opt-label">Tasks Only</span>
         </div>
         <div class="toggle-option" data-value="both" id="opt-both">
-          <span class="opt-icon">📄📌</span>
+          <span class="opt-icon">📄✅</span>
           <span class="opt-label">Both</span>
         </div>
       </div>
@@ -592,6 +592,7 @@
         </div>
         <div class="status-step" id="step-keep">
           <div class="step-dot" id="dot-keep">5</div>
+          <span>Adding rollover tasks to Google Tasks…</span>
           <span>Saving Keep summary…</span>
         </div>
       </div>
@@ -627,10 +628,6 @@
     <div class="field">
       <label>Drive Folder Name</label>
       <input type="text" id="cfg-folder" placeholder="Daily Notes" />
-    </div>
-    <div class="field">
-      <label>Your Gmail Address (for Keep notes)</label>
-      <input type="email" id="cfg-keep-email" placeholder="yourname@gmail.com" />
     </div>
 
     <button class="save-btn" id="save-cfg-btn">Save Settings</button>
@@ -688,7 +685,6 @@ function initApp() {
   document.getElementById('cfg-gemini-key').value = cfg.geminiKey || '';
   document.getElementById('cfg-client-id').value  = cfg.clientId  || '';
   document.getElementById('cfg-folder').value     = cfg.folder    || 'Daily Notes';
-  document.getElementById('cfg-keep-email').value = cfg.keepEmail || '';
   outputMode = cfg.lastOutput || 'docs';
   setOutputToggle(outputMode);
   if (cfg.googleToken) {
@@ -736,7 +732,6 @@ function initApp() {
     c.geminiKey = document.getElementById('cfg-gemini-key').value.trim();
     c.clientId  = document.getElementById('cfg-client-id').value.trim();
     c.folder    = document.getElementById('cfg-folder').value.trim() || 'Daily Notes';
-    c.keepEmail = document.getElementById('cfg-keep-email').value.trim();
     saveCfg(c);
     showToast('Settings saved \u2713');
     document.getElementById('modal-backdrop').classList.remove('open');
@@ -753,7 +748,7 @@ function initApp() {
       scope: [
         'https://www.googleapis.com/auth/documents',
         'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/tasks',
       ].join(' '),
       prompt: 'consent',
     });
@@ -929,9 +924,9 @@ async function processNotes() {
 
     if (outputMode !== 'docs') {
       setStep('keep', 'active');
-      await sendToKeep(reviewed, googleToken);
+      const taskCount = await sendToTasks(reviewed, googleToken);
       setStep('keep', 'done');
-      links.push({ icon: '\ud83d\udccc', label: 'Open Google Keep', sub: 'Action items summary', url: 'https://keep.google.com' });
+      links.push({ icon: '\u2705', label: 'Open Google Tasks', sub: (taskCount || 0) + ' rollover task(s) added', url: 'https://tasks.google.com' });
     }
 
     showResults(links);
@@ -1438,48 +1433,63 @@ async function getOrCreateFolder(token, name, parentId) {
 
 // ── GOOGLE KEEP (via Gmail) ───────────────────────────────────────────────────
 
-async function sendToKeep(data, token) {
-  // Only send rollover tasks to Keep — checklist format only
-  const rollovers = (data.note_blocks || []).reduce(function(acc, block) {
-    if (block.type === 'rollover') acc.push(block.text || '');
+async function sendToTasks(data, token) {
+  // Collect all rollover tasks — each becomes its own individual task entry
+  const rollovers = [];
+  (data.note_blocks || []).forEach(function(block) {
+    if (block.type === 'rollover') {
+      rollovers.push({
+        text: (block.text || '').replace(/\s+PND\/\w+/gi, '').trim(),
+        tag:  block.tag || '',
+        due:  block.due_date || ''
+      });
+    }
     (block.children || []).forEach(function(child) {
-      if (child.type === 'rollover') acc.push(child.text || '');
+      if (child.type === 'rollover') {
+        rollovers.push({
+          text: (child.text || '').replace(/\s+PND\/\w+/gi, '').trim(),
+          tag:  child.tag || data.note_blocks[0] && block.tag || '',
+          due:  child.due_date || ''
+        });
+      }
     });
-    return acc;
-  }, []);
+  });
 
   if (!rollovers.length) {
-    console.log('No rollover tasks found — skipping Keep note');
+    console.log('No rollover tasks — skipping Tasks');
     return;
   }
 
-  // Use email address from settings (saved during OAuth or entered manually)
-  const cfg = loadCfg();
-  const emailAddress = cfg.gmailAddress || cfg.keepEmail || '';
-  if (!emailAddress) {
-    throw new Error('Gmail address not set — open Settings and enter your Gmail address in the Keep Email field');
+  // Get or create the NoteSync Rollovers task list
+  const taskListId = await getOrCreateTaskList(token, '\ud83d\udcd3 NoteSync Rollovers');
+
+  const dateLabel = data.day_label || new Date().toDateString();
+  const mtg = data.meeting_context ? ' \u2014 ' + data.meeting_context : '';
+
+  // Create each rollover as an individual task
+  for (const r of rollovers) {
+    const title = r.text + (r.tag ? '  ' + r.tag : '');
+    const notes = 'From: ' + dateLabel + mtg + (r.due ? '\nDUE: ' + r.due : '');
+    await gFetch(
+      'https://tasks.googleapis.com/tasks/v1/lists/' + taskListId + '/tasks',
+      token, 'POST',
+      { title: title, notes: notes, status: 'needsAction' }
+    );
   }
 
-  const subject = '\ud83d\udd04 Rollovers \u2014 ' + (data.day_label || new Date().toDateString())
-    + (data.meeting_context ? ' \u2014 ' + data.meeting_context : '');
+  return rollovers.length;
+}
 
-  // Format as plain checklist (Keep renders lines starting with [] as checkboxes)
-  const body = rollovers.map(function(t) {
-    return '[] ' + (t || '').replace(/\s+PND\/\w+/gi, '').trim();
-  }).join('\r\n');
+async function getOrCreateTaskList(token, listName) {
+  // Check if list already exists
+  const res = await gFetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100', token, 'GET');
+  const lists = (res.items || []);
+  const existing = lists.find(function(l) { return l.title === listName; });
+  if (existing) return existing.id;
 
-  const email = [
-    'To: ' + emailAddress,
-    'Subject: ' + subject,
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    body
-  ].join('\r\n');
-
-  const encoded = btoa(unescape(encodeURIComponent(email)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-  await gFetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', token, 'POST', { raw: encoded });
+  // Create new task list
+  const created = await gFetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists', token, 'POST', { title: listName });
+  return created.id;
 }
 
 // ── TAG REGISTRY ──────────────────────────────────────────────────────────────
