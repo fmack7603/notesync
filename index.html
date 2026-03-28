@@ -638,6 +638,7 @@
       Authorize NoteSync to create Docs and Keep notes in your Google account.
     </div>
     <button class="auth-btn" id="auth-btn">🔐 Connect Google Account</button>
+    <button class="auth-btn" id="auth-clear-btn" style="margin-top:8px;border-color:#f75f5f;color:#f75f5f;">🔄 Clear Token & Reconnect (use if permissions changed)</button>
     <div class="auth-status" id="auth-status" style="display:none"></div>
 
     <div class="modal-divider"></div>
@@ -750,6 +751,28 @@ function initApp() {
         'https://www.googleapis.com/auth/tasks',
       ].join(' '),
       prompt: 'consent',
+    });
+    window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
+  });
+
+  document.getElementById('auth-clear-btn').addEventListener('click', () => {
+    // Clear stored token to force full re-authorization with new scopes
+    const c = loadCfg();
+    delete c.googleToken;
+    saveCfg(c);
+    googleToken = null;
+    showAuthStatus(false);
+    if (!c.clientId) { showToast('Enter your Google Client ID first'); return; }
+    const params = new URLSearchParams({
+      client_id:     c.clientId,
+      redirect_uri:  window.location.origin + window.location.pathname,
+      response_type: 'token',
+      scope: [
+        'https://www.googleapis.com/auth/documents',
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/tasks',
+      ].join(' '),
+      prompt: 'consent select_account',
     });
     window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
   });
