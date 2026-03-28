@@ -948,7 +948,7 @@ async function processNotes() {
       setStep('keep', 'active');
       const taskCount = await sendToTasks(reviewed, googleToken);
       setStep('keep', 'done');
-      links.push({ icon: '\u2705', label: 'Open Google Tasks', sub: (taskCount || 0) + ' rollover task(s) added', url: 'https://tasks.google.com' });
+      links.push({ icon: '\u2705', label: 'Open Google Tasks', sub: (taskCount || 0) + ' task(s) added (rollovers + follow-ups)', url: 'https://tasks.google.com' });
     }
 
     showResults(links);
@@ -1059,7 +1059,11 @@ STATEMENTS:
 type=statement, person=the name. Text must NOT start with their name again. Strip name and opener words (Stated, Requested, Said, Shared, Noted) from start of text.
 
 CONTEXT TAGS:
-[SQUARE BRACKETS] = context tag. Use FULL name as written: [Air France] not [AFC], [LHT Safari VIP] not [LHT].
+[SQUARE BRACKETS] = context tag, BUT only when the bracketed text is a project, meeting, or program name (e.g. [Air France], [ATG-DWC], [B777-AerBlade], [LHT Safari VIP]). Use FULL name as written.
+EXCEPTION — these bracket labels are NOT context tags, they are type indicators:
+- [Follow-Up] or [Follow-up] or [Follow Up] at the START of a line = type arrow. Extract the text after the bracket as the note text.
+- [D] at the start = type decision.
+Never add [Follow-Up] or [Follow-up] to context_tags. It is a label, not a project name.
 Preserve exact capitalization as written. Extract to context_tags AND set tag field.
 
 DEADLINES:
@@ -1456,50 +1460,67 @@ async function getOrCreateFolder(token, name, parentId) {
 // ── GOOGLE KEEP (via Gmail) ───────────────────────────────────────────────────
 
 async function sendToTasks(data, token) {
-  // Collect all rollover tasks — each becomes its own individual task entry
+  // Collect rollover and follow-up tasks — each becomes its own individual task entry
   const rollovers = [];
-  (data.note_blocks || []).forEach(function(block) {
-    if (block.type === 'rollover') {
-      rollovers.push({
-        text: (block.text || '').replace(/\s+PND\/\w+/gi, '').trim(),
-        tag:  block.tag || '',
-        due:  block.due_date || ''
-      });
-    }
-    (block.children || []).forEach(function(child) {
-      if (child.type === 'rollover') {
-        rollovers.push({
-          text: (child.text || '').replace(/\s+PND\/\w+/gi, '').trim(),
-          tag:  child.tag || data.note_blocks[0] && block.tag || '',
-          due:  child.due_date || ''
-        });
+  const followups = [];
+
+  function collectTasks(blocks) {
+    (blocks || []).forEach(function(block) {
+      const text = (block.text || '').replace(/\s+PND\/\w+/gi, '').trim();
+      const tag  = block.tag || '';
+      const due  = block.due_date || '';
+      if (block.type === 'rollover') {
+        rollovers.push({ text, tag, due });
+      } else if (block.type === 'arrow') {
+        followups.push({ text, tag, due });
+      }
+      if (block.children && block.children.length) {
+        collectTasks(block.children);
       }
     });
-  });
-
-  if (!rollovers.length) {
-    console.log('No rollover tasks — skipping Tasks');
-    return;
   }
+  collectTasks(data.note_blocks || []);
 
-  // Get or create the NoteSync Rollovers task list
-  const taskListId = await getOrCreateTaskList(token, '\ud83d\udcd3 NoteSync Rollovers');
+  if (!rollovers.length && !followups.length) {
+    console.log('No rollover or follow-up tasks — skipping Tasks');
+    return 0;
+  }
 
   const dateLabel = data.day_label || new Date().toDateString();
   const mtg = data.meeting_context ? ' \u2014 ' + data.meeting_context : '';
+  let totalAdded = 0;
 
-  // Create each rollover as an individual task
-  for (const r of rollovers) {
-    const title = r.text + (r.tag ? '  ' + r.tag : '');
-    const notes = 'From: ' + dateLabel + mtg + (r.due ? '\nDUE: ' + r.due : '');
-    await gFetch(
-      'https://tasks.googleapis.com/tasks/v1/lists/' + taskListId + '/tasks',
-      token, 'POST',
-      { title: title, notes: notes, status: 'needsAction' }
-    );
+  // Rollover tasks → 📓 NoteSync Rollovers list
+  if (rollovers.length) {
+    const rolloverListId = await getOrCreateTaskList(token, '\ud83d\udcd3 NoteSync Rollovers');
+    for (const r of rollovers) {
+      const title = r.text + (r.tag ? '  ' + r.tag : '');
+      const notes = 'From: ' + dateLabel + mtg + (r.due ? '\nDUE: ' + r.due : '');
+      await gFetch(
+        'https://tasks.googleapis.com/tasks/v1/lists/' + rolloverListId + '/tasks',
+        token, 'POST',
+        { title: title, notes: notes, status: 'needsAction' }
+      );
+      totalAdded++;
+    }
   }
 
-  return rollovers.length;
+  // Follow-up tasks → 📌 NoteSync Follow-Ups list
+  if (followups.length) {
+    const followupListId = await getOrCreateTaskList(token, '\ud83d\udccc NoteSync Follow-Ups');
+    for (const f of followups) {
+      const title = f.text + (f.tag ? '  ' + f.tag : '');
+      const notes = 'From: ' + dateLabel + mtg + (f.due ? '\nDUE: ' + f.due : '');
+      await gFetch(
+        'https://tasks.googleapis.com/tasks/v1/lists/' + followupListId + '/tasks',
+        token, 'POST',
+        { title: title, notes: notes, status: 'needsAction' }
+      );
+      totalAdded++;
+    }
+  }
+
+  return totalAdded;
 }
 
 async function getOrCreateTaskList(token, listName) {
