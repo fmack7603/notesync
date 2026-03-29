@@ -1241,7 +1241,7 @@ async function embedImageInDoc(docId, base64, mimeType, token, folderName, today
   );
 
   // Step 3 — Get the file's webContentLink for embedding
-  const fileMeta = await gFetch(
+  const imageUrl = 'https://drive.google.com/uc?export=view&id=' + imageFileId;
     'https://www.googleapis.com/drive/v3/files/' + imageFileId + '?fields=webContentLink',
     token, 'GET'
   );
