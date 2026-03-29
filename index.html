@@ -52,7 +52,6 @@
       padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
     }
 
-    /* ── HEADER ── */
     header {
       padding: 20px 24px 12px;
       display: flex;
@@ -60,11 +59,7 @@
       justify-content: space-between;
       border-bottom: 1px solid var(--border);
     }
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+    .logo { display: flex; align-items: center; gap: 10px; }
     .logo-icon {
       width: 36px; height: 36px;
       background: linear-gradient(135deg, var(--accent), var(--accent2));
@@ -93,7 +88,6 @@
     }
     #settings-btn:hover { color: var(--text); border-color: var(--accent); }
 
-    /* ── MAIN CONTENT ── */
     main {
       flex: 1;
       padding: 24px;
@@ -103,7 +97,6 @@
       overflow-y: auto;
     }
 
-    /* ── CAPTURE ZONE ── */
     .capture-zone {
       background: var(--surface);
       border: 2px dashed var(--border);
@@ -118,21 +111,9 @@
       position: relative;
       overflow: hidden;
     }
-    .capture-zone.has-image {
-      border-style: solid;
-      border-color: var(--accent);
-      padding: 0;
-    }
-    .capture-zone.dragging {
-      border-color: var(--accent2);
-      background: #1a1a2e;
-    }
-    .capture-placeholder {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-    }
+    .capture-zone.has-image { border-style: solid; border-color: var(--accent); padding: 0; }
+    .capture-zone.dragging { border-color: var(--accent2); background: #1a1a2e; }
+    .capture-placeholder { display: flex; flex-direction: column; align-items: center; gap: 12px; }
     .capture-icon {
       width: 64px; height: 64px;
       background: linear-gradient(135deg, rgba(79,142,247,0.15), rgba(124,106,247,0.15));
@@ -140,16 +121,8 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 28px;
     }
-    .capture-label {
-      font-size: 15px;
-      font-weight: 500;
-      color: var(--text);
-    }
-    .capture-sub {
-      font-size: 12px;
-      color: var(--muted);
-      font-family: var(--mono);
-    }
+    .capture-label { font-size: 15px; font-weight: 500; color: var(--text); }
+    .capture-sub { font-size: 12px; color: var(--muted); font-family: var(--mono); }
     #preview-img {
       width: 100%;
       border-radius: calc(var(--radius) - 2px);
@@ -171,12 +144,7 @@
     }
     .capture-zone.has-image .preview-overlay { display: block; }
 
-    /* ── CAPTURE BUTTONS ── */
-    .capture-btns {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
+    .capture-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .capture-btn {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -200,7 +168,6 @@
     }
     .capture-btn .btn-icon { font-size: 18px; }
 
-    /* ── OUTPUT TOGGLE ── */
     .section-label {
       font-family: var(--mono);
       font-size: 11px;
@@ -234,7 +201,6 @@
     }
     .toggle-option.active .opt-label { color: var(--accent); }
 
-    /* ── PROCESS BUTTON ── */
     #process-btn {
       width: 100%;
       padding: 18px;
@@ -253,13 +219,9 @@
       transition: opacity 0.2s, transform 0.1s;
       letter-spacing: 0.02em;
     }
-    #process-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    #process-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     #process-btn:not(:disabled):active { transform: scale(0.98); }
 
-    /* ── STATUS / PROGRESS ── */
     #status-card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -295,20 +257,13 @@
       background: rgba(79,142,247,0.15);
       animation: pulse 1.2s ease-in-out infinite;
     }
-    .status-step.done .step-dot {
-      border-color: var(--success);
-      background: rgba(62,207,142,0.15);
-    }
-    .status-step.error .step-dot {
-      border-color: var(--danger);
-      background: rgba(247,95,95,0.15);
-    }
+    .status-step.done .step-dot { border-color: var(--success); background: rgba(62,207,142,0.15); }
+    .status-step.error .step-dot { border-color: var(--danger); background: rgba(247,95,95,0.15); }
     @keyframes pulse {
       0%, 100% { box-shadow: 0 0 0 0 rgba(79,142,247,0.3); }
       50% { box-shadow: 0 0 0 6px rgba(79,142,247,0); }
     }
 
-    /* ── RESULT CARD ── */
     #result-card {
       background: var(--surface);
       border: 1px solid var(--success);
@@ -317,17 +272,8 @@
       display: none;
     }
     #result-card.visible { display: block; }
-    .result-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
-    }
-    .result-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--success);
-    }
+    .result-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .result-title { font-size: 15px; font-weight: 600; color: var(--success); }
     .result-links { display: flex; flex-direction: column; gap: 8px; }
     .result-link {
       display: flex;
@@ -361,7 +307,6 @@
     }
     .reset-btn:hover { border-color: var(--text); color: var(--text); }
 
-    /* ── SETTINGS MODAL ── */
     .modal-backdrop {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.75);
@@ -385,30 +330,10 @@
       from { transform: translateY(100%); }
       to   { transform: translateY(0); }
     }
-    .modal-handle {
-      width: 36px; height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-      margin: 0 auto 20px;
-    }
-    .modal-title {
-      font-family: var(--mono);
-      font-size: 13px;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      text-transform: uppercase;
-      margin-bottom: 20px;
-    }
+    .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+    .modal-title { font-family: var(--mono); font-size: 13px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; margin-bottom: 20px; }
     .field { margin-bottom: 16px; }
-    .field label {
-      display: block;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--muted);
-      margin-bottom: 6px;
-      font-family: var(--mono);
-      letter-spacing: 0.05em;
-    }
+    .field label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); letter-spacing: 0.05em; }
     .field input {
       width: 100%;
       background: var(--surface2);
@@ -424,85 +349,43 @@
     .field input:focus { border-color: var(--accent); }
     .field input::placeholder { color: var(--muted); opacity: 0.6; }
     .save-btn {
-      width: 100%;
-      padding: 14px;
+      width: 100%; padding: 14px;
       background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border: none;
-      border-radius: var(--radius-sm);
-      color: #fff;
-      font-family: var(--sans);
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-top: 4px;
+      border: none; border-radius: var(--radius-sm);
+      color: #fff; font-family: var(--sans); font-size: 15px; font-weight: 600;
+      cursor: pointer; margin-top: 4px;
     }
-    .modal-divider {
-      height: 1px;
-      background: var(--border);
-      margin: 20px 0;
-    }
-    .modal-section-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 10px;
-    }
-    .info-text {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.6;
-    }
+    .modal-divider { height: 1px; background: var(--border); margin: 20px 0; }
+    .modal-section-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+    .info-text { font-size: 13px; color: var(--muted); line-height: 1.6; }
     .info-text a { color: var(--accent); text-decoration: none; }
     .auth-btn {
-      width: 100%;
-      padding: 12px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      color: var(--text);
-      font-family: var(--sans);
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin-top: 10px;
-      transition: border-color 0.2s;
+      width: 100%; padding: 12px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      color: var(--text); font-family: var(--sans); font-size: 14px; font-weight: 500;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 10px; transition: border-color 0.2s;
     }
     .auth-btn:hover { border-color: var(--accent); }
     .auth-status {
-      font-size: 12px;
-      font-family: var(--mono);
-      padding: 8px 12px;
-      border-radius: var(--radius-sm);
-      margin-top: 8px;
-      text-align: center;
+      font-size: 12px; font-family: var(--mono);
+      padding: 8px 12px; border-radius: var(--radius-sm); margin-top: 8px; text-align: center;
     }
     .auth-status.ok { background: rgba(62,207,142,0.1); color: var(--success); border: 1px solid rgba(62,207,142,0.3); }
     .auth-status.fail { background: rgba(247,95,95,0.1); color: var(--danger); border: 1px solid rgba(247,95,95,0.3); }
 
-    /* ── TOAST ── */
     #toast {
       position: fixed;
       bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
       left: 50%; transform: translateX(-50%) translateY(20px);
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 100px;
-      padding: 10px 20px;
-      font-size: 13px;
-      color: var(--text);
-      white-space: nowrap;
-      opacity: 0;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 100px;
+      padding: 10px 20px; font-size: 13px; color: var(--text);
+      white-space: nowrap; opacity: 0;
       transition: opacity 0.3s, transform 0.3s;
-      z-index: 200;
-      pointer-events: none;
+      z-index: 200; pointer-events: none;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* Hidden inputs */
     input[type="file"] { display: none; }
   </style>
 </head>
@@ -518,8 +401,6 @@
   </header>
 
   <main>
-
-    <!-- Capture Zone -->
     <div>
       <div class="section-label">Capture Notes</div>
       <div class="capture-zone" id="capture-zone">
@@ -533,71 +414,41 @@
       </div>
     </div>
 
-    <!-- Capture Buttons -->
     <div class="capture-btns">
-      <button class="capture-btn" id="camera-btn">
-        <span class="btn-icon">📸</span> Camera
-      </button>
-      <button class="capture-btn" id="gallery-btn">
-        <span class="btn-icon">🖼️</span> Gallery
-      </button>
+      <button class="capture-btn" id="camera-btn"><span class="btn-icon">📸</span> Camera</button>
+      <button class="capture-btn" id="gallery-btn"><span class="btn-icon">🖼️</span> Gallery</button>
     </div>
 
-    <!-- Hidden file inputs -->
     <input type="file" id="camera-input" accept="image/*" capture="environment" />
     <input type="file" id="gallery-input" accept="image/*" />
 
-    <!-- Output Toggle -->
     <div>
       <div class="section-label">Save To</div>
       <div class="output-toggle">
         <div class="toggle-option active" data-value="docs" id="opt-docs">
-          <span class="opt-icon">📄</span>
-          <span class="opt-label">Docs Only</span>
+          <span class="opt-icon">📄</span><span class="opt-label">Docs Only</span>
         </div>
         <div class="toggle-option" data-value="keep" id="opt-keep">
-          <span class="opt-icon">✅</span>
-          <span class="opt-label">Tasks Only</span>
+          <span class="opt-icon">✅</span><span class="opt-label">Tasks Only</span>
         </div>
         <div class="toggle-option" data-value="both" id="opt-both">
-          <span class="opt-icon">📄✅</span>
-          <span class="opt-label">Both</span>
+          <span class="opt-icon">📄✅</span><span class="opt-label">Both</span>
         </div>
       </div>
     </div>
 
-    <!-- Process Button -->
-    <button id="process-btn" disabled>
-      <span>✨</span> Digitize Notes
-    </button>
+    <button id="process-btn" disabled><span>✨</span> Digitize Notes</button>
 
-    <!-- Status Card -->
     <div id="status-card">
       <div class="status-steps">
-        <div class="status-step" id="step-gemini">
-          <div class="step-dot" id="dot-gemini">1</div>
-          <span>Sending to Gemini for transcription…</span>
-        </div>
-        <div class="status-step" id="step-review">
-          <div class="step-dot" id="dot-review">2</div>
-          <span>Reviewing transcription for errors…</span>
-        </div>
-        <div class="status-step" id="step-parse">
-          <div class="step-dot" id="dot-parse">3</div>
-          <span>Structuring your notes…</span>
-        </div>
-        <div class="status-step" id="step-docs">
-          <div class="step-dot" id="dot-docs">4</div>
-          <span id="step-docs-label">Creating Google Doc…</span>
-        </div>
-        <div class="status-step" id="step-keep">
-          <div class="step-dot" id="dot-keep">5</div>
-          <span>Adding rollover tasks to Google Tasks…</span>
-        </div>
+        <div class="status-step" id="step-gemini"><div class="step-dot" id="dot-gemini">1</div><span>Sending to Gemini for transcription…</span></div>
+        <div class="status-step" id="step-review"><div class="step-dot" id="dot-review">2</div><span>Reviewing transcription for errors…</span></div>
+        <div class="status-step" id="step-parse"><div class="step-dot" id="dot-parse">3</div><span>Structuring your notes…</span></div>
+        <div class="status-step" id="step-docs"><div class="step-dot" id="dot-docs">4</div><span id="step-docs-label">Creating Google Doc…</span></div>
+        <div class="status-step" id="step-keep"><div class="step-dot" id="dot-keep">5</div><span>Adding rollover tasks to Google Tasks…</span></div>
       </div>
     </div>
 
-    <!-- Result Card -->
     <div id="result-card">
       <div class="result-header">
         <span style="font-size:22px">✅</span>
@@ -606,47 +457,26 @@
       <div class="result-links" id="result-links"></div>
       <button class="reset-btn" id="reset-btn">+ Digitize Another</button>
     </div>
-
   </main>
 </div>
 
-<!-- Settings Modal -->
 <div class="modal-backdrop" id="modal-backdrop">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title">⚙ Settings</div>
-
-    <div class="field">
-      <label>Gemini API Key</label>
-      <input type="password" id="cfg-gemini-key" placeholder="AIza..." />
-    </div>
-    <div class="field">
-      <label>Google Client ID (OAuth)</label>
-      <input type="text" id="cfg-client-id" placeholder="123456789-abc.apps.googleusercontent.com" />
-    </div>
-    <div class="field">
-      <label>Drive Folder Name</label>
-      <input type="text" id="cfg-folder" placeholder="Daily Notes" />
-    </div>
-
+    <div class="field"><label>Gemini API Key</label><input type="password" id="cfg-gemini-key" placeholder="AIza..." /></div>
+    <div class="field"><label>Google Client ID (OAuth)</label><input type="text" id="cfg-client-id" placeholder="123456789-abc.apps.googleusercontent.com" /></div>
+    <div class="field"><label>Drive Folder Name</label><input type="text" id="cfg-folder" placeholder="Daily Notes" /></div>
     <button class="save-btn" id="save-cfg-btn">Save Settings</button>
-
     <div class="modal-divider"></div>
-
     <div class="modal-section-title">Google Account</div>
-    <div class="info-text">
-      Authorize NoteSync to create Docs and Keep notes in your Google account.
-    </div>
+    <div class="info-text">Authorize NoteSync to create Docs and Keep notes in your Google account.</div>
     <button class="auth-btn" id="auth-btn">🔐 Connect Google Account</button>
     <button class="auth-btn" id="auth-clear-btn" style="margin-top:8px;border-color:#f75f5f;color:#f75f5f;">🔄 Clear Token & Reconnect (use if permissions changed)</button>
     <div class="auth-status" id="auth-status" style="display:none"></div>
-
     <div class="modal-divider"></div>
     <div class="modal-section-title">Need help setting up?</div>
-    <div class="info-text">
-      See <strong>SETUP.md</strong> in your GitHub repo for a full walkthrough including API keys and OAuth credentials.
-    </div>
-
+    <div class="info-text">See <strong>SETUP.md</strong> in your GitHub repo for a full walkthrough including API keys and OAuth credentials.</div>
   </div>
 </div>
 
@@ -657,13 +487,8 @@
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 
 const CFG_KEY = 'notesync_config';
-
-function loadCfg() {
-  try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; }
-}
-function saveCfg(cfg) {
-  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
-}
+function loadCfg() { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; } }
+function saveCfg(cfg) { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 
@@ -678,26 +503,16 @@ let docIdForCorrections = null;
 document.addEventListener('DOMContentLoaded', initApp);
 
 function initApp() {
-  console.log('[NoteSync] initApp fired, readyState=' + document.readyState);
-
-  // ── Restore saved config into settings fields ───────────────────────────────
   const cfg = loadCfg();
   document.getElementById('cfg-gemini-key').value = cfg.geminiKey || '';
   document.getElementById('cfg-client-id').value  = cfg.clientId  || '';
   document.getElementById('cfg-folder').value     = cfg.folder    || 'Daily Notes';
   outputMode = cfg.lastOutput || 'docs';
   setOutputToggle(outputMode);
-  if (cfg.googleToken) {
-    googleToken = cfg.googleToken;
-    showAuthStatus(true);
-  }
+  if (cfg.googleToken) { googleToken = cfg.googleToken; showAuthStatus(true); }
 
-  // ── Service worker ──────────────────────────────────────────────────────────
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-  // ── Handle OAuth redirect token in URL hash ─────────────────────────────────
   try {
     const hash = window.location.hash;
     if (hash.includes('access_token')) {
@@ -705,9 +520,7 @@ function initApp() {
       const token  = params.get('access_token');
       if (token) {
         googleToken = token;
-        const c = loadCfg();
-        c.googleToken = token;
-        saveCfg(c);
+        const c = loadCfg(); c.googleToken = token; saveCfg(c);
         window.history.replaceState({}, '', window.location.pathname);
         showAuthStatus(true);
         showToast('Google account connected \u2713');
@@ -715,15 +528,9 @@ function initApp() {
     }
   } catch(e) { console.warn('OAuth redirect error:', e); }
 
-  // ── Settings modal ──────────────────────────────────────────────────────────
-  const _sBtn = document.getElementById('settings-btn');
-  console.log('[NoteSync] settings-btn found:', !!_sBtn);
-  if (_sBtn) {
-    _sBtn.addEventListener('click', () => {
-      console.log('[NoteSync] settings-btn clicked');
-      document.getElementById('modal-backdrop').classList.add('open');
-    });
-  }
+  document.getElementById('settings-btn').addEventListener('click', () => {
+    document.getElementById('modal-backdrop').classList.add('open');
+  });
   document.getElementById('modal-backdrop').addEventListener('click', e => {
     if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
   });
@@ -737,71 +544,44 @@ function initApp() {
     document.getElementById('modal-backdrop').classList.remove('open');
   });
 
-  // ── Google Auth button ──────────────────────────────────────────────────────
   document.getElementById('auth-btn').addEventListener('click', () => {
     const c = loadCfg();
     if (!c.clientId) { showToast('Enter your Google Client ID first'); return; }
     const params = new URLSearchParams({
-      client_id:     c.clientId,
-      redirect_uri:  window.location.origin + window.location.pathname,
+      client_id: c.clientId,
+      redirect_uri: window.location.origin + window.location.pathname,
       response_type: 'token',
-      scope: [
-        'https://www.googleapis.com/auth/documents',
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/tasks',
-      ].join(' '),
+      scope: ['https://www.googleapis.com/auth/documents','https://www.googleapis.com/auth/drive.file','https://www.googleapis.com/auth/tasks'].join(' '),
       prompt: 'consent',
     });
     window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
   });
 
   document.getElementById('auth-clear-btn').addEventListener('click', () => {
-    // Clear stored token to force full re-authorization with new scopes
-    const c = loadCfg();
-    delete c.googleToken;
-    saveCfg(c);
-    googleToken = null;
-    showAuthStatus(false);
+    const c = loadCfg(); delete c.googleToken; saveCfg(c); googleToken = null; showAuthStatus(false);
     if (!c.clientId) { showToast('Enter your Google Client ID first'); return; }
     const params = new URLSearchParams({
-      client_id:     c.clientId,
-      redirect_uri:  window.location.origin + window.location.pathname,
+      client_id: c.clientId,
+      redirect_uri: window.location.origin + window.location.pathname,
       response_type: 'token',
-      scope: [
-        'https://www.googleapis.com/auth/documents',
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/tasks',
-      ].join(' '),
+      scope: ['https://www.googleapis.com/auth/documents','https://www.googleapis.com/auth/drive.file','https://www.googleapis.com/auth/tasks'].join(' '),
       prompt: 'consent select_account',
     });
     window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
   });
 
-  // ── Image capture ───────────────────────────────────────────────────────────
-  document.getElementById('camera-btn').addEventListener('click', () => {
-    document.getElementById('camera-input').click();
-  });
-  document.getElementById('gallery-btn').addEventListener('click', () => {
-    document.getElementById('gallery-input').click();
-  });
-  document.getElementById('capture-zone').addEventListener('click', () => {
-    if (imageFile) document.getElementById('gallery-input').click();
-  });
+  document.getElementById('camera-btn').addEventListener('click', () => document.getElementById('camera-input').click());
+  document.getElementById('gallery-btn').addEventListener('click', () => document.getElementById('gallery-input').click());
+  document.getElementById('capture-zone').addEventListener('click', () => { if (imageFile) document.getElementById('gallery-input').click(); });
   document.getElementById('camera-input').addEventListener('change',  e => handleFile(e.target.files[0]));
   document.getElementById('gallery-input').addEventListener('change', e => handleFile(e.target.files[0]));
 
-  // ── Output toggle ───────────────────────────────────────────────────────────
   document.querySelectorAll('.toggle-option').forEach(el => {
-    el.addEventListener('click', () => {
-      setOutputToggle(el.dataset.value);
-      const c = loadCfg(); c.lastOutput = outputMode; saveCfg(c);
-    });
+    el.addEventListener('click', () => { setOutputToggle(el.dataset.value); const c = loadCfg(); c.lastOutput = outputMode; saveCfg(c); });
   });
 
-  // ── Process button ──────────────────────────────────────────────────────────
   document.getElementById('process-btn').addEventListener('click', processNotes);
 
-  // ── Reset button ────────────────────────────────────────────────────────────
   document.getElementById('reset-btn').addEventListener('click', () => {
     imageFile = null; imageBase64 = null;
     const img = document.getElementById('preview-img');
@@ -814,10 +594,9 @@ function initApp() {
     document.getElementById('camera-input').value  = '';
     document.getElementById('gallery-input').value = '';
   });
+}
 
-} // end initApp
-
-// ── HELPERS (outside initApp — safe to call any time) ────────────────────────
+// ── HELPERS ───────────────────────────────────────────────────────────────────
 
 function handleFile(file) {
   if (!file) return;
@@ -826,8 +605,7 @@ function handleFile(file) {
   reader.onload = e => {
     imageBase64 = e.target.result.split(',')[1];
     const img = document.getElementById('preview-img');
-    img.src = e.target.result;
-    img.style.display = 'block';
+    img.src = e.target.result; img.style.display = 'block';
     document.getElementById('capture-placeholder').style.display = 'none';
     document.getElementById('capture-zone').classList.add('has-image');
     document.getElementById('process-btn').disabled = false;
@@ -837,9 +615,7 @@ function handleFile(file) {
 
 function setOutputToggle(value) {
   outputMode = value;
-  document.querySelectorAll('.toggle-option').forEach(el => {
-    el.classList.toggle('active', el.dataset.value === value);
-  });
+  document.querySelectorAll('.toggle-option').forEach(el => el.classList.toggle('active', el.dataset.value === value));
 }
 
 function showAuthStatus(ok) {
@@ -847,9 +623,7 @@ function showAuthStatus(ok) {
   el.style.display = 'block';
   el.className = 'auth-status ' + (ok ? 'ok' : 'fail');
   el.textContent = ok ? '\u2713 Google account connected' : '\u2717 Not connected';
-  document.getElementById('auth-btn').textContent = ok
-    ? '\ud83d\udd04 Reconnect Google Account'
-    : '\ud83d\udd10 Connect Google Account';
+  document.getElementById('auth-btn').textContent = ok ? '\ud83d\udd04 Reconnect Google Account' : '\ud83d\udd10 Connect Google Account';
 }
 
 function setStep(id, state, symbol) {
@@ -878,8 +652,7 @@ function showResults(links) {
 
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
@@ -918,7 +691,6 @@ async function processNotes() {
     await sleep(400);
     setStep('parse', 'done');
 
-    // Tag Registry
     if (reviewed.context_tags && reviewed.context_tags.length) {
       try {
         const tagResult = await updateTagRegistry(reviewed.context_tags, googleToken, cfg.folder, reviewed.day_label);
@@ -930,18 +702,18 @@ async function processNotes() {
         if (tagResult && tagResult.registryDocId) {
           links.push({ icon: '\ud83d\udccb', label: 'Tag Registry', sub: 'View all context tags', url: 'https://docs.google.com/document/d/' + tagResult.registryDocId + '/edit' });
         }
-      } catch(tagErr) {
-        console.warn('Tag registry error (non-fatal):', tagErr);
-      }
+      } catch(tagErr) { console.warn('Tag registry error (non-fatal):', tagErr); }
     }
 
     if (outputMode !== 'keep') {
       setStep('docs', 'active');
       const docResult = await createGoogleDoc(reviewed, googleToken, cfg.folder, imageBase64, imageFile ? imageFile.type : null);
-      const docUrl = docResult.url;
       docIdForCorrections = docResult.docId;
       setStep('docs', 'done');
-      links.push({ icon: '\ud83d\udcc4', label: 'Open Google Doc', sub: 'Full structured notes', url: docUrl });
+      links.push({ icon: '\ud83d\udcc4', label: 'Open Google Doc', sub: 'Full structured notes', url: docResult.url });
+      if (docResult.photoUrl) {
+        links.push({ icon: '\ud83d\udcf7', label: 'View Original Photo', sub: 'Opens photo in Google Drive', url: docResult.photoUrl });
+      }
     }
 
     if (outputMode !== 'docs') {
@@ -953,7 +725,6 @@ async function processNotes() {
 
     showResults(links);
 
-    // Post-processing: abbreviation glossary + corrections panels
     await sleep(500);
     if (reviewed.unrecognized_abbrevs && reviewed.unrecognized_abbrevs.length) {
       await showAbbrevPanel(reviewed.unrecognized_abbrevs, googleToken, cfg.folder);
@@ -961,9 +732,7 @@ async function processNotes() {
     if (docIdForCorrections) {
       const allText = collectAllText(reviewed.note_blocks || []);
       const uncertainCount = (allText.match(/\[\?\]/g) || []).length;
-      if (uncertainCount > 0) {
-        await showCorrectionsPanel(docIdForCorrections, googleToken);
-      }
+      if (uncertainCount > 0) await showCorrectionsPanel(docIdForCorrections, googleToken);
     }
 
   } catch(err) {
@@ -1088,25 +857,16 @@ Prioritize: high priority items, deadlines, statements with names, decisions, wa
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType || 'image/jpeg', data: base64 } }
-          ]
-        }]
+        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType || 'image/jpeg', data: base64 } }] }]
       })
     }
   );
 
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error && err.error.message ? err.error.message : 'Gemini API error');
-  }
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error && err.error.message ? err.error.message : 'Gemini API error'); }
 
   const data = await res.json();
-  let raw = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) ? data.candidates[0].content.parts[0].text : '{}';
+  let raw = (data.candidates?.[0]?.content?.parts?.[0]?.text) || '{}';
   raw = raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'').trim();
-
   try { return JSON.parse(raw); }
   catch { return { day_label: new Date().toDateString(), meeting_context: null, key_takeaways: [], note_blocks: [], context_tags: [] }; }
 }
@@ -1169,34 +929,18 @@ ${JSON.stringify(data)}`;
   try {
     const res = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: reviewPrompt }] }]
-        })
-      }
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: reviewPrompt }] }] }) }
     );
-
-    if (!res.ok) {
-      console.warn('Review pass failed, using original transcription');
-      return data;
-    }
-
+    if (!res.ok) { console.warn('Review pass failed, using original'); return data; }
     const result = await res.json();
-    let raw = (result.candidates && result.candidates[0] &&
-               result.candidates[0].content && result.candidates[0].content.parts &&
-               result.candidates[0].content.parts[0] &&
-               result.candidates[0].content.parts[0].text) || '';
+    let raw = (result.candidates?.[0]?.content?.parts?.[0]?.text) || '';
     raw = raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'').trim();
-
     const reviewed = JSON.parse(raw);
-    console.log('Review pass complete — corrections applied');
+    console.log('Review pass complete');
     return reviewed;
-
   } catch(e) {
     console.warn('Review pass error, using original:', e.message);
-    return data; // Fall back to original if review fails
+    return data;
   }
 }
 
@@ -1209,83 +953,98 @@ async function createGoogleDoc(data, token, folderName, imageBase64, imageMimeTy
   const createRes = await gFetch('https://docs.googleapis.com/v1/documents', token, 'POST', { title });
   const docId  = createRes.documentId;
   const docUrl = 'https://docs.google.com/document/d/' + docId + '/edit';
+
   const requests = buildDocRequests(lines);
   if (requests.length) {
     await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST', { requests });
   }
 
-  // Move doc to correct folder first
   await moveToFolder(docId, token, folderName, today);
 
-  // Embed original photo at bottom of doc if image provided
+  // Upload photo to Drive and append a clickable link at the bottom of the doc
+  let photoUrl = null;
   if (imageBase64 && imageMimeType) {
     try {
-      await embedImageInDoc(docId, imageBase64, imageMimeType, token, folderName, today, data.day_label);
+      photoUrl = await appendPhotoLink(docId, imageBase64, imageMimeType, token, folderName, today, data.day_label);
     } catch(e) {
-      console.warn('Image embed failed (non-fatal):', e.message);
+      console.warn('Photo link append failed (non-fatal):', e.message);
     }
   }
 
-  return { url: docUrl, docId };
+  return { url: docUrl, docId, photoUrl };
 }
 
-async function embedImageInDoc(docId, base64, mimeType, token, folderName, today, dayLabel) {
-  // Step 1 — Upload image to Drive
+// ── APPEND PHOTO LINK ─────────────────────────────────────────────────────────
+// Uploads the photo to Drive, then appends a formatted hyperlink at the
+// bottom of the doc. Reliable, no Docs API image-embed restrictions.
+
+async function appendPhotoLink(docId, base64, mimeType, token, folderName, today, dayLabel) {
+  // Step 1 — Upload image to Drive (same month folder as the doc)
   const imageFileId = await uploadImageToDrive(base64, mimeType, token, folderName, today, dayLabel);
 
-  // Step 2 — Make file readable by Docs API (anyone with link can view)
-  await gFetch(
-    'https://www.googleapis.com/drive/v3/files/' + imageFileId + '/permissions',
-    token, 'POST',
-    { role: 'reader', type: 'anyone' }
-  );
+  // Step 2 — Build the Drive file viewer URL
+  const photoViewUrl = 'https://drive.google.com/file/d/' + imageFileId + '/view';
 
-  // Step 3 — Get the file's webContentLink for embedding
-  const imageUrl = 'https://drive.google.com/uc?export=view&id=' + imageFileId;
-    'https://www.googleapis.com/drive/v3/files/' + imageFileId + '?fields=webContentLink',
-    token, 'GET'
-  );
-  const imageUrl = fileMeta.webContentLink;
-  if (!imageUrl) throw new Error('Could not get image URL from Drive');
-
-  // Step 4 — Get current doc end index to insert at bottom
+  // Step 3 — Get current doc end index
   const doc = await gFetch('https://docs.googleapis.com/v1/documents/' + docId, token, 'GET');
   const endIndex = (doc.body && doc.body.content && doc.body.content.length)
     ? doc.body.content[doc.body.content.length - 1].endIndex - 1
     : 1;
 
-  // Step 5 — Insert section header + image at end of doc
-  // Half width = ~3.25 inches = 234000 EMUs (1 inch = 914400 EMUs)
-  const halfWidthEMU = 2972700; // ~3.25 inches
+  // Step 4 — Define the text we will insert
+  const headerText = '\n\ud83d\udcf7 Original Notes Photo\n';  // \n + heading + \n
+  const linkText   = '\ud83d\udcf7 View Original Notes Photo';
+
+  // Step 5 — Insert header + link text, then style them
   const requests = [
-    // Add section header
-    { insertText: { location: { index: endIndex }, text: '\n\ud83d\udcf7 Original Notes\n' } },
-    // Update header style
+    // Insert header paragraph
+    {
+      insertText: {
+        location: { index: endIndex },
+        text: headerText
+      }
+    },
+    // Style it as HEADING_1 (skip the leading \n, style the heading text only)
     {
       updateParagraphStyle: {
-        range: { startIndex: endIndex + 1, endIndex: endIndex + 19 },
+        range: { startIndex: endIndex + 1, endIndex: endIndex + headerText.length - 1 },
         paragraphStyle: { namedStyleType: 'HEADING_1' },
         fields: 'namedStyleType'
       }
     },
-    // Insert image inline at half width
+    // Insert the link text after the header
     {
-      insertInlineImage: {
-        location: { index: endIndex + 20 },
-        uri: imageUrl,
-        objectSize: {
-          width:  { magnitude: halfWidthEMU, unit: 'EMU' },
-          height: { magnitude: halfWidthEMU * 1.33, unit: 'EMU' } // portrait ratio
-        }
+      insertText: {
+        location: { index: endIndex + headerText.length },
+        text: linkText + '\n'
+      }
+    },
+    // Apply hyperlink + blue underline style to the link text
+    {
+      updateTextStyle: {
+        range: {
+          startIndex: endIndex + headerText.length,
+          endIndex:   endIndex + headerText.length + linkText.length
+        },
+        textStyle: {
+          link: { url: photoViewUrl },
+          foregroundColor: { color: { rgbColor: { red: 0.314, green: 0.557, blue: 0.969 } } },
+          underline: true,
+          fontSize: { magnitude: 12, unit: 'PT' }
+        },
+        fields: 'link,foregroundColor,underline,fontSize'
       }
     }
   ];
 
   await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST', { requests });
+
+  return photoViewUrl;
 }
 
+// ── DRIVE IMAGE UPLOAD ────────────────────────────────────────────────────────
+
 async function uploadImageToDrive(base64, mimeType, token, folderName, today, dayLabel) {
-  // Get the month folder ID to co-locate image with the doc
   const rootId  = await getOrCreateFolder(token, folderName, null);
   const yearId  = await getOrCreateFolder(token, String(today.getFullYear()), rootId);
   const month   = today.toLocaleString('default', { month: 'long' });
@@ -1294,16 +1053,13 @@ async function uploadImageToDrive(base64, mimeType, token, folderName, today, da
   const fileName = 'Notes Photo \u2014 ' + (dayLabel || today.toDateString());
   const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
 
-  // Multipart upload: metadata + binary data
   const boundary = 'notesync_boundary_' + Date.now();
   const metaPart = JSON.stringify({ name: fileName + '.' + ext, parents: [monthId], mimeType });
 
-  // Convert base64 to binary
   const binaryStr = atob(base64);
   const bytes = new Uint8Array(binaryStr.length);
   for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
-  // Build multipart body
   const encoder = new TextEncoder();
   const metaBytes = encoder.encode(
     '--' + boundary + '\r\nContent-Type: application/json\r\n\r\n' + metaPart + '\r\n' +
@@ -1320,10 +1076,7 @@ async function uploadImageToDrive(base64, mimeType, token, folderName, today, da
     'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
     {
       method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + token,
-        'Content-Type': 'multipart/related; boundary=' + boundary
-      },
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + boundary },
       body: body
     }
   );
@@ -1337,9 +1090,7 @@ async function uploadImageToDrive(base64, mimeType, token, folderName, today, da
   return result.id;
 }
 
-// ── CONTINUATION MERGE ───────────────────────────────────────────────────────
-// Gemini splits wrapped lines into parent + [NOTE] child.
-// This merges child text back into parent when child is clearly a continuation.
+// ── CONTINUATION MERGE ────────────────────────────────────────────────────────
 
 function isContinuation(child, parentBlock) {
   if (!child) return false;
@@ -1348,11 +1099,9 @@ function isContinuation(child, parentBlock) {
   if (child.waiting_on || child.due_date || child.tag || child.person) return false;
   const t = (child.text || '').trim();
   if (!t) return false;
-  // Never merge if child introduces a new proper noun subject (name, project, meeting)
   if (/^[A-Z][a-z]+ (to have|has |to provide|to complete|to discuss)/i.test(t)) return false;
   if (/^(mark|joseph|peggy|patrick|john|dave|nicole|ali|francisco|stefania|michelle)/i.test(t)) return false;
   if (/meeting|today|discuss/i.test(t) && parentBlock && !/meeting|today|discuss/i.test(parentBlock.text || '')) return false;
-  // Continuation signals: starts lowercase, starts with conjunction/preposition
   const continuationStarters = /^(with|and|or|to |the |a |an |in |of |for |that |as |at |on |by |from |into |about |\+)/i;
   const startsLower = t[0] === t[0].toLowerCase() && /[a-z]/.test(t[0]);
   return startsLower || continuationStarters.test(t);
@@ -1361,10 +1110,8 @@ function isContinuation(child, parentBlock) {
 function mergeBlocks(blocks) {
   return blocks.map(function(block) {
     if (!block.children || block.children.length === 0) return block;
-
     const merged = Object.assign({}, block);
     const remainingChildren = [];
-
     block.children.forEach(function(child) {
       if (isContinuation(child, block)) {
         merged.text = (merged.text || '').trim() + ' ' + (child.text || '').trim();
@@ -1372,7 +1119,6 @@ function mergeBlocks(blocks) {
         remainingChildren.push(child);
       }
     });
-
     merged.children = mergeBlocks(remainingChildren);
     return merged;
   });
@@ -1381,45 +1127,36 @@ function mergeBlocks(blocks) {
 function buildDocContent(data) {
   const lines = [];
   const d = data;
-
-  // ── Title ──
   const titleParts = [d.day_label || new Date().toDateString()];
   if (d.meeting_context) titleParts.push('\u2014 ' + d.meeting_context);
   lines.push({ text: titleParts.join(' '), style: 'TITLE' });
-
-  // ── Key Takeaways ──
   if (d.key_takeaways && d.key_takeaways.length) {
     lines.push({ text: '\ud83d\udccb KEY TAKEAWAYS', style: 'HEADING_1' });
     d.key_takeaways.forEach(t => lines.push({ text: '\u2022  ' + t, style: 'NORMAL' }));
     lines.push({ text: '', style: 'NORMAL' });
   }
-
-  // ── Full Notes ──
   if (d.note_blocks && d.note_blocks.length) {
     lines.push({ text: '\ud83d\udcc4 FULL NOTES', style: 'HEADING_1' });
     const mergedBlocks = mergeBlocks(d.note_blocks);
     renderBlocks(mergedBlocks, lines, 0);
   }
-
   return lines;
 }
 
 function labelForBlock(block, depth) {
-  // Children use softer labels
   if (depth > 0) {
     const childMap = {
-      rollover:   '[ROLLOVER]',
-      completed:  '[COMPLETED]',
-      statement:  '[STATEMENT' + (block.person ? ': ' + block.person : '') + ']',
-      waiting:    '[WAITING' + (block.waiting_on ? ': ' + block.waiting_on : '') + ']',
-      decision:   '[DECISION' + (block.person ? ': ' + block.person : '') + ']',
-      low:        '[NOTE]',
-      info:       '[NOTE]',
-      arrow:      '[FOLLOW UP]',
+      rollover:  '[ROLLOVER]',
+      completed: '[COMPLETED]',
+      statement: '[STATEMENT' + (block.person ? ': ' + block.person : '') + ']',
+      waiting:   '[WAITING' + (block.waiting_on ? ': ' + block.waiting_on : '') + ']',
+      decision:  '[DECISION' + (block.person ? ': ' + block.person : '') + ']',
+      low:       '[NOTE]',
+      info:      '[NOTE]',
+      arrow:     '[FOLLOW UP]',
     };
     return childMap[block.type] || '';
   }
-  // Top-level labels
   const labelMap = {
     high_priority: '[HIGH' + (block.priority_rank ? ' ' + block.priority_rank : '') + ']',
     rollover:      '[ROLLOVER]',
@@ -1436,22 +1173,17 @@ function labelForBlock(block, depth) {
 }
 
 function renderBlocks(blocks, lines, depth) {
-  // Pre-process: absorb orphaned tag_header blocks into the next block's tag
   const processed = [];
   let pendingTag = null;
   blocks.forEach(function(block) {
     if (block.type === 'tag_header' || (block.type === 'info' && !block.text && block.tag)) {
-      // This is an orphaned tag line — hold it for the next block
       pendingTag = block.tag || block.text;
     } else {
-      if (pendingTag && !block.tag) {
-        block = Object.assign({}, block, { tag: pendingTag });
-      }
+      if (pendingTag && !block.tag) block = Object.assign({}, block, { tag: pendingTag });
       pendingTag = null;
       processed.push(block);
     }
   });
-  // If tag still pending at end, add it to last block
   if (pendingTag && processed.length) {
     const last = processed[processed.length - 1];
     if (!last.tag) processed[processed.length - 1] = Object.assign({}, last, { tag: pendingTag });
@@ -1459,80 +1191,49 @@ function renderBlocks(blocks, lines, depth) {
 
   const indent = '    '.repeat(depth);
   processed.forEach(function(block, idx) {
-    // Blank line before each top-level block except first
-    if (depth === 0 && idx > 0) {
-      lines.push({ text: '', style: 'NORMAL' });
-    }
+    if (depth === 0 && idx > 0) lines.push({ text: '', style: 'NORMAL' });
 
-    const label = labelForBlock(block, depth);
-
-    // Clean text — strip leaked symbols, PND/ suffixes, normalize whitespace
     let text = (block.text || '')
       .replace(/[☑☒□°→•✓✗]/g, '')
       .replace(/^\s*[\-–—:]+\s*/, '')
       .replace(/\s+PND\/\w+/gi, '')
       .trim();
 
-    // Ensure info blocks that are about a person include their name
     if (block.type === 'info' && block.person && !text.toLowerCase().startsWith(block.person.toLowerCase())) {
       text = block.person + ' — ' + text;
     }
 
-    // Statement text cleanup
     if (block.type === 'statement') {
-      // Remove redundant person name at start
       if (block.person) {
         const personPattern = new RegExp('^' + block.person.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s\\-–—:]+', 'i');
         text = text.replace(personPattern, '').trim();
-        // Only strip bare openers with no meaningful verb content
         text = text.replace(/^(stated|said)\s+(that\s+)?/i, '').trim();
-        // Fix mid-sentence starts — if text starts lowercase after stripping, capitalize
         if (text && text[0] === text[0].toLowerCase() && /[a-z]/.test(text[0])) {
           text = text[0].toUpperCase() + text.slice(1);
         }
       }
-      // Ensure person name is in label — if person is missing, try to extract from text
       if (!block.person && text) {
         const nameMatch = text.match(/^([A-Z][a-z]+)\s+(?:shared|stated|said|requested|asked|noted|confirmed)/i);
-        if (nameMatch) {
-          block = Object.assign({}, block, { person: nameMatch[1] });
-          text = text.slice(nameMatch[0].length).trim();
-        }
+        if (nameMatch) { block = Object.assign({}, block, { person: nameMatch[1] }); text = text.slice(nameMatch[0].length).trim(); }
       }
     }
 
-    // Normalize tag capitalization to Title Case, preserve acronyms
     let tag = block.tag || '';
     if (tag) {
       tag = tag.replace(/\[|\]/g, '').trim();
-      // Title case but preserve ALL-CAPS words (acronyms)
-      tag = '[' + tag.split(' ').map(function(w) {
-        return w === w.toUpperCase() ? w : w[0].toUpperCase() + w.slice(1).toLowerCase();
-      }).join(' ') + ']';
+      tag = '[' + tag.split(' ').map(function(w) { return w === w.toUpperCase() ? w : w[0].toUpperCase() + w.slice(1).toLowerCase(); }).join(' ') + ']';
     }
 
-    // Tag — show only if not already in text
     const tagStr = tag && text.indexOf(tag) === -1 ? '  ' + tag : '';
-
-    // Due date — one instance, strip "by" prefix
-    const dueStr = block.due_date
-      ? '  DUE: ' + block.due_date.replace(/^by\s+/i,'').trim() : '';
-
-    // Rebuild label in case person was extracted above
+    const dueStr = block.due_date ? '  DUE: ' + block.due_date.replace(/^by\s+/i,'').trim() : '';
     const finalLabel = labelForBlock(block, depth);
 
     let line = indent;
     if (finalLabel) line += finalLabel + '  ';
     line += text + tagStr + dueStr;
 
-    // Skip entirely empty lines (orphan artifacts)
-    if (line.trim()) {
-      lines.push({ text: line.trim(), style: 'NORMAL' });
-    }
-
-    if (block.children && block.children.length) {
-      renderBlocks(block.children, lines, depth + 1);
-    }
+    if (line.trim()) lines.push({ text: line.trim(), style: 'NORMAL' });
+    if (block.children && block.children.length) renderBlocks(block.children, lines, depth + 1);
   });
 }
 
@@ -1577,10 +1278,9 @@ async function getOrCreateFolder(token, name, parentId) {
   return created.id;
 }
 
-// ── GOOGLE KEEP (via Gmail) ───────────────────────────────────────────────────
+// ── GOOGLE TASKS ──────────────────────────────────────────────────────────────
 
 async function sendToTasks(data, token) {
-  // Collect rollover and follow-up tasks — each becomes its own individual task entry
   const rollovers = [];
   const followups = [];
 
@@ -1589,68 +1289,42 @@ async function sendToTasks(data, token) {
       const text = (block.text || '').replace(/\s+PND\/\w+/gi, '').trim();
       const tag  = block.tag || '';
       const due  = block.due_date || '';
-      if (block.type === 'rollover') {
-        rollovers.push({ text, tag, due });
-      } else if (block.type === 'arrow') {
-        followups.push({ text, tag, due });
-      }
-      if (block.children && block.children.length) {
-        collectTasks(block.children);
-      }
+      if (block.type === 'rollover') rollovers.push({ text, tag, due });
+      else if (block.type === 'arrow') followups.push({ text, tag, due });
+      if (block.children && block.children.length) collectTasks(block.children);
     });
   }
   collectTasks(data.note_blocks || []);
 
-  if (!rollovers.length && !followups.length) {
-    console.log('No rollover or follow-up tasks — skipping Tasks');
-    return 0;
-  }
+  if (!rollovers.length && !followups.length) { console.log('No tasks — skipping'); return 0; }
 
   const dateLabel = data.day_label || new Date().toDateString();
   const mtg = data.meeting_context ? ' \u2014 ' + data.meeting_context : '';
   let totalAdded = 0;
 
-  // Rollover tasks → 📓 NoteSync Rollovers list
   if (rollovers.length) {
     const rolloverListId = await getOrCreateTaskList(token, '\ud83d\udcd3 NoteSync Rollovers');
     for (const r of rollovers) {
-      const title = r.text + (r.tag ? '  ' + r.tag : '');
-      const notes = 'From: ' + dateLabel + mtg + (r.due ? '\nDUE: ' + r.due : '');
-      await gFetch(
-        'https://tasks.googleapis.com/tasks/v1/lists/' + rolloverListId + '/tasks',
-        token, 'POST',
-        { title: title, notes: notes, status: 'needsAction' }
-      );
+      await gFetch('https://tasks.googleapis.com/tasks/v1/lists/' + rolloverListId + '/tasks', token, 'POST',
+        { title: r.text + (r.tag ? '  ' + r.tag : ''), notes: 'From: ' + dateLabel + mtg + (r.due ? '\nDUE: ' + r.due : ''), status: 'needsAction' });
       totalAdded++;
     }
   }
-
-  // Follow-up tasks → 📌 NoteSync Follow-Ups list
   if (followups.length) {
     const followupListId = await getOrCreateTaskList(token, '\ud83d\udccc NoteSync Follow-Ups');
     for (const f of followups) {
-      const title = f.text + (f.tag ? '  ' + f.tag : '');
-      const notes = 'From: ' + dateLabel + mtg + (f.due ? '\nDUE: ' + f.due : '');
-      await gFetch(
-        'https://tasks.googleapis.com/tasks/v1/lists/' + followupListId + '/tasks',
-        token, 'POST',
-        { title: title, notes: notes, status: 'needsAction' }
-      );
+      await gFetch('https://tasks.googleapis.com/tasks/v1/lists/' + followupListId + '/tasks', token, 'POST',
+        { title: f.text + (f.tag ? '  ' + f.tag : ''), notes: 'From: ' + dateLabel + mtg + (f.due ? '\nDUE: ' + f.due : ''), status: 'needsAction' });
       totalAdded++;
     }
   }
-
   return totalAdded;
 }
 
 async function getOrCreateTaskList(token, listName) {
-  // Check if list already exists
   const res = await gFetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100', token, 'GET');
-  const lists = (res.items || []);
-  const existing = lists.find(function(l) { return l.title === listName; });
+  const existing = (res.items || []).find(function(l) { return l.title === listName; });
   if (existing) return existing.id;
-
-  // Create new task list
   const created = await gFetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists', token, 'POST', { title: listName });
   return created.id;
 }
@@ -1778,12 +1452,8 @@ async function showAbbrevPanel(abbrevs, token, folderName) {
   return new Promise(function(resolve) {
     let current = 0;
     const results = [];
-
     function showNext() {
-      if (current >= abbrevs.length) {
-        saveAbbrevs(results, token, folderName).then(resolve).catch(resolve);
-        return;
-      }
+      if (current >= abbrevs.length) { saveAbbrevs(results, token, folderName).then(resolve).catch(resolve); return; }
       const item = abbrevs[current];
       const bd = document.createElement('div');
       bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:400;display:flex;align-items:flex-end;';
@@ -1792,8 +1462,7 @@ async function showAbbrevPanel(abbrevs, token, folderName) {
         '<div style="font-size:12px;color:#6b6b88;font-family:var(--mono);margin-bottom:8px;">NEW ABBREVIATION ' + (current+1) + ' OF ' + abbrevs.length + '</div>' +
         '<div style="font-size:24px;font-weight:700;color:#4f8ef7;margin-bottom:6px;">' + item.abbrev + '</div>' +
         '<div style="font-size:12px;color:#6b6b88;margin-bottom:16px;">Found in: "' + (item.context||'').slice(0,55) + '"</div>' +
-        '<input id="abv-in" type="text" placeholder="Type full meaning (or leave blank to skip)..." ' +
-        'style="width:100%;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;padding:12px;color:#e8e8f0;font-size:15px;outline:none;margin-bottom:12px;" />' +
+        '<input id="abv-in" type="text" placeholder="Type full meaning (or leave blank to skip)..." style="width:100%;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;padding:12px;color:#e8e8f0;font-size:15px;outline:none;margin-bottom:12px;" />' +
         '<div style="display:flex;gap:8px;">' +
         '<button id="abv-add" style="flex:2;padding:12px;background:linear-gradient(135deg,#4f8ef7,#7c6af7);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Add to Glossary</button>' +
         '<button id="abv-skip" style="flex:1;padding:12px;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;color:#6b6b88;font-size:14px;cursor:pointer;">Skip</button>' +
@@ -1805,9 +1474,7 @@ async function showAbbrevPanel(abbrevs, token, folderName) {
         if (meaning) results.push({ abbrev: item.abbrev, meaning: meaning, context: item.context });
         bd.remove(); current++; showNext();
       };
-      document.getElementById('abv-skip').onclick = function() {
-        bd.remove(); current++; showNext();
-      };
+      document.getElementById('abv-skip').onclick = function() { bd.remove(); current++; showNext(); };
     }
     showNext();
   });
@@ -1818,7 +1485,6 @@ async function saveAbbrevs(results, token, folderName) {
   const cfg = loadCfg();
   let gDocId = cfg.glossaryDocId || null;
   const today = new Date().toISOString().split('T')[0];
-
   if (!gDocId) {
     const cr = await gFetch('https://docs.googleapis.com/v1/documents', token, 'POST', { title: 'NoteSync Abbreviation Glossary (App)' });
     gDocId = cr.documentId;
@@ -1828,13 +1494,9 @@ async function saveAbbrevs(results, token, folderName) {
     const prev = (fr.parents || []).join(',');
     await gFetch('https://www.googleapis.com/drive/v3/files/' + gDocId + '?addParents=' + rootId + '&removeParents=' + prev, token, 'PATCH', {});
   }
-
   const doc = await gFetch('https://docs.googleapis.com/v1/documents/' + gDocId, token, 'GET');
-  const endIdx = ((doc.body && doc.body.content && doc.body.content.length)
-    ? doc.body.content[doc.body.content.length-1].endIndex : 2) - 1;
-  const insertText = results.map(function(r) {
-    return r.abbrev + ' - ' + r.meaning + ' (added ' + today + ')';
-  }).join('\n') + '\n';
+  const endIdx = ((doc.body && doc.body.content && doc.body.content.length) ? doc.body.content[doc.body.content.length-1].endIndex : 2) - 1;
+  const insertText = results.map(function(r) { return r.abbrev + ' - ' + r.meaning + ' (added ' + today + ')'; }).join('\n') + '\n';
   await gFetch('https://docs.googleapis.com/v1/documents/' + gDocId + ':batchUpdate', token, 'POST', {
     requests: [{ insertText: { location: { index: endIdx }, text: insertText } }]
   });
@@ -1846,45 +1508,33 @@ async function saveAbbrevs(results, token, folderName) {
 async function showCorrectionsPanel(docId, token) {
   return new Promise(function(resolve) {
     let correctionsDone = 0;
-
     const bd = document.createElement('div');
     bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:400;display:flex;align-items:flex-end;';
     bd.innerHTML =
       '<div style="background:#12121a;border:1px solid #f7a94f;border-radius:14px 14px 0 0;padding:24px;width:100%;font-family:var(--sans);">' +
       '<div style="font-size:16px;font-weight:600;color:#f7a94f;margin-bottom:8px;">Gemini could not read some words</div>' +
       '<div style="font-size:13px;color:#e8e8f0;margin-bottom:16px;">Your Doc contains [?] markers. Type the correct word to replace each one, or close to leave them for manual review.</div>' +
-      '<input id="corr-in" type="text" placeholder="Replacement for next [?]..." ' +
-      'style="width:100%;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;padding:12px;color:#e8e8f0;font-size:15px;outline:none;margin-bottom:12px;" />' +
+      '<input id="corr-in" type="text" placeholder="Replacement for next [?]..." style="width:100%;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;padding:12px;color:#e8e8f0;font-size:15px;outline:none;margin-bottom:12px;" />' +
       '<div style="display:flex;gap:8px;">' +
       '<button id="corr-save" style="flex:2;padding:12px;background:linear-gradient(135deg,#f7a94f,#f75f5f);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Replace Next [?]</button>' +
       '<button id="corr-done" style="flex:1;padding:12px;background:#1a1a26;border:1px solid #2a2a3d;border-radius:8px;color:#6b6b88;font-size:14px;cursor:pointer;">Done</button>' +
-      '</div>' +
-      '<div id="corr-status" style="font-size:12px;color:#6b6b88;margin-top:10px;text-align:center;"></div>' +
+      '</div><div id="corr-status" style="font-size:12px;color:#6b6b88;margin-top:10px;text-align:center;"></div>' +
       '</div>';
     document.body.appendChild(bd);
     document.getElementById('corr-in').focus();
-
     document.getElementById('corr-save').onclick = async function() {
       const word = document.getElementById('corr-in').value.trim();
       if (!word) return;
       try {
         await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST', {
-          requests: [{
-            replaceAllText: {
-              containsText: { text: '[?]', matchCase: true },
-              replaceText: word
-            }
-          }]
+          requests: [{ replaceAllText: { containsText: { text: '[?]', matchCase: true }, replaceText: word } }]
         });
         correctionsDone++;
         document.getElementById('corr-status').textContent = correctionsDone + ' replacement(s) applied';
         document.getElementById('corr-in').value = '';
         document.getElementById('corr-in').focus();
-      } catch(e) {
-        document.getElementById('corr-status').textContent = 'Error: ' + e.message;
-      }
+      } catch(e) { document.getElementById('corr-status').textContent = 'Error: ' + e.message; }
     };
-
     document.getElementById('corr-done').onclick = function() {
       bd.remove();
       if (correctionsDone) showToast(correctionsDone + ' correction(s) applied to Doc');
