@@ -937,7 +937,7 @@ async function processNotes() {
 
     if (outputMode !== 'keep') {
       setStep('docs', 'active');
-      const docResult = await createGoogleDoc(reviewed, googleToken, cfg.folder);
+      const docResult = await createGoogleDoc(reviewed, googleToken, cfg.folder, imageBase64, imageFile ? imageFile.type : null);
       const docUrl = docResult.url;
       docIdForCorrections = docResult.docId;
       setStep('docs', 'done');
@@ -1202,7 +1202,7 @@ ${JSON.stringify(data)}`;
 
 // ── GOOGLE DOCS ───────────────────────────────────────────────────────────────
 
-async function createGoogleDoc(data, token, folderName) {
+async function createGoogleDoc(data, token, folderName, imageBase64, imageMimeType) {
   const today = new Date();
   const title = '\ud83d\udcd3 Daily Notes \u2014 ' + (data.day_label || today.toDateString());
   const lines  = buildDocContent(data);
@@ -1213,8 +1213,128 @@ async function createGoogleDoc(data, token, folderName) {
   if (requests.length) {
     await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST', { requests });
   }
+
+  // Move doc to correct folder first
   await moveToFolder(docId, token, folderName, today);
+
+  // Embed original photo at bottom of doc if image provided
+  if (imageBase64 && imageMimeType) {
+    try {
+      await embedImageInDoc(docId, imageBase64, imageMimeType, token, folderName, today, data.day_label);
+    } catch(e) {
+      console.warn('Image embed failed (non-fatal):', e.message);
+    }
+  }
+
   return { url: docUrl, docId };
+}
+
+async function embedImageInDoc(docId, base64, mimeType, token, folderName, today, dayLabel) {
+  // Step 1 — Upload image to Drive
+  const imageFileId = await uploadImageToDrive(base64, mimeType, token, folderName, today, dayLabel);
+
+  // Step 2 — Make file readable by Docs API (anyone with link can view)
+  await gFetch(
+    'https://www.googleapis.com/drive/v3/files/' + imageFileId + '/permissions',
+    token, 'POST',
+    { role: 'reader', type: 'anyone' }
+  );
+
+  // Step 3 — Get the file's webContentLink for embedding
+  const fileMeta = await gFetch(
+    'https://www.googleapis.com/drive/v3/files/' + imageFileId + '?fields=webContentLink',
+    token, 'GET'
+  );
+  const imageUrl = fileMeta.webContentLink;
+  if (!imageUrl) throw new Error('Could not get image URL from Drive');
+
+  // Step 4 — Get current doc end index to insert at bottom
+  const doc = await gFetch('https://docs.googleapis.com/v1/documents/' + docId, token, 'GET');
+  const endIndex = (doc.body && doc.body.content && doc.body.content.length)
+    ? doc.body.content[doc.body.content.length - 1].endIndex - 1
+    : 1;
+
+  // Step 5 — Insert section header + image at end of doc
+  // Half width = ~3.25 inches = 234000 EMUs (1 inch = 914400 EMUs)
+  const halfWidthEMU = 2972700; // ~3.25 inches
+  const requests = [
+    // Add section header
+    { insertText: { location: { index: endIndex }, text: '\n\ud83d\udcf7 Original Notes\n' } },
+    // Update header style
+    {
+      updateParagraphStyle: {
+        range: { startIndex: endIndex + 1, endIndex: endIndex + 19 },
+        paragraphStyle: { namedStyleType: 'HEADING_1' },
+        fields: 'namedStyleType'
+      }
+    },
+    // Insert image inline at half width
+    {
+      insertInlineImage: {
+        location: { index: endIndex + 20 },
+        uri: imageUrl,
+        objectSize: {
+          width:  { magnitude: halfWidthEMU, unit: 'EMU' },
+          height: { magnitude: halfWidthEMU * 1.33, unit: 'EMU' } // portrait ratio
+        }
+      }
+    }
+  ];
+
+  await gFetch('https://docs.googleapis.com/v1/documents/' + docId + ':batchUpdate', token, 'POST', { requests });
+}
+
+async function uploadImageToDrive(base64, mimeType, token, folderName, today, dayLabel) {
+  // Get the month folder ID to co-locate image with the doc
+  const rootId  = await getOrCreateFolder(token, folderName, null);
+  const yearId  = await getOrCreateFolder(token, String(today.getFullYear()), rootId);
+  const month   = today.toLocaleString('default', { month: 'long' });
+  const monthId = await getOrCreateFolder(token, month, yearId);
+
+  const fileName = 'Notes Photo \u2014 ' + (dayLabel || today.toDateString());
+  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+
+  // Multipart upload: metadata + binary data
+  const boundary = 'notesync_boundary_' + Date.now();
+  const metaPart = JSON.stringify({ name: fileName + '.' + ext, parents: [monthId], mimeType });
+
+  // Convert base64 to binary
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  // Build multipart body
+  const encoder = new TextEncoder();
+  const metaBytes = encoder.encode(
+    '--' + boundary + '\r\nContent-Type: application/json\r\n\r\n' + metaPart + '\r\n' +
+    '--' + boundary + '\r\nContent-Type: ' + mimeType + '\r\n\r\n'
+  );
+  const closingBytes = encoder.encode('\r\n--' + boundary + '--');
+
+  const body = new Uint8Array(metaBytes.length + bytes.length + closingBytes.length);
+  body.set(metaBytes, 0);
+  body.set(bytes, metaBytes.length);
+  body.set(closingBytes, metaBytes.length + bytes.length);
+
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'multipart/related; boundary=' + boundary
+      },
+      body: body
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err.error && err.error.message) ? err.error.message : 'Image upload failed');
+  }
+
+  const result = await res.json();
+  return result.id;
 }
 
 // ── CONTINUATION MERGE ───────────────────────────────────────────────────────
